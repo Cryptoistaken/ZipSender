@@ -1,29 +1,43 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TAP_TARGET = 20;
 const WINDOW_MS = 4000;
+const STORAGE_KEY = 'zipsender-admin-unlocked';
 
-export function useSecretAdminTap(onUnlock: () => void) {
+// Persist admin state so it survives app restarts
+export async function loadAdminUnlocked(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(STORAGE_KEY);
+    return val === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function saveAdminUnlocked(value: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
+  } catch {}
+}
+
+// Hook — no visible counter exposed
+export function useSecretAdminTap(onUnlock: () => void, alreadyUnlocked: boolean) {
   const tapsRef = useRef<number[]>([]);
-  const [unlocked, setUnlocked] = useState(false);
-  const [tapCount, setTapCount] = useState(0);
 
   const handleTap = useCallback(() => {
-    if (unlocked) return;
+    if (alreadyUnlocked) return;
 
     const now = Date.now();
     tapsRef.current = [...tapsRef.current, now].filter(
-      (t) => now - t < WINDOW_MS,
+      (t) => now - t < WINDOW_MS
     );
-    setTapCount(tapsRef.current.length);
 
     if (tapsRef.current.length >= TAP_TARGET) {
       tapsRef.current = [];
-      setTapCount(0);
-      setUnlocked(true);
-      onUnlock();
+      saveAdminUnlocked(true).then(() => onUnlock());
     }
-  }, [unlocked, onUnlock]);
+  }, [alreadyUnlocked, onUnlock]);
 
-  return { handleTap, unlocked, tapCount };
+  return { handleTap };
 }

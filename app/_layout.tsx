@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { ConvexProvider, ConvexReactClient } from 'convex/react';
 import { StatusBar } from 'expo-status-bar';
@@ -12,10 +13,36 @@ import {
   Almarai_800ExtraBold,
 } from '@expo-google-fonts/almarai';
 import * as SplashScreen from 'expo-splash-screen';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 // Hardcoded Convex URL — no env var needed at runtime
 const CONVEX_URL = 'https://majestic-fennec-666.eu-west-1.convex.cloud';
 const convex = new ConvexReactClient(CONVEX_URL);
+
+async function requestPermissions() {
+  try {
+    if (Platform.OS === 'android') {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Storage Permission',
+          'ZipSender needs storage access to save downloaded files. Some features may not work without it.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
+
+    // Ensure ZipSender download folder exists
+    const dir = FileSystem.documentDirectory + 'ZipSender/';
+    const info = await FileSystem.getInfoAsync(dir);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    }
+  } catch (err) {
+    console.warn('Permission request failed:', err);
+  }
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -26,17 +53,16 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    // Hide splash as soon as fonts are done (or immediately if already loaded)
     if (fontsLoaded) {
       SplashScreen.hideAsync().catch(() => {});
+      requestPermissions();
     }
   }, [fontsLoaded]);
 
-  // Always render — never block on fonts. System fonts show until custom fonts load.
   return (
     <GestureHandlerRootView style={styles.root}>
       <ConvexProvider client={convex}>
-        <StatusBar style="light" />
+        <StatusBar style="light" translucent backgroundColor="transparent" />
         <Stack screenOptions={{ headerShown: false }} />
       </ConvexProvider>
     </GestureHandlerRootView>

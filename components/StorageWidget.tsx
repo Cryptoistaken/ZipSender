@@ -1,24 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSecretAdminTap } from '../hooks/useSecretAdminTap';
+import {
+  useSecretAdminTap,
+  loadAdminUnlocked,
+} from '../hooks/useSecretAdminTap';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 
 interface Props {
   onUnlock: () => void;
+  adminUnlocked: boolean;
 }
 
 function formatGB(bytes: number): string {
   return (bytes / 1024 ** 3).toFixed(1) + ' GB';
 }
 
-export default function StorageWidget({ onUnlock }: Props) {
+export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
   const [freeBytes, setFreeBytes] = useState<number | null>(null);
   const [totalBytes, setTotalBytes] = useState<number | null>(null);
 
-  const { handleTap, unlocked, tapCount } = useSecretAdminTap(onUnlock);
+  // Secret tap — no visible counter rendered
+  const { handleTap } = useSecretAdminTap(onUnlock, adminUnlocked);
 
   useEffect(() => {
     (async () => {
@@ -46,14 +51,12 @@ export default function StorageWidget({ onUnlock }: Props) {
       <View style={styles.header}>
         <MaterialCommunityIcons name="harddisk" size={16} color={Colors.cream50} />
         <Text style={styles.label}>Storage</Text>
-        {unlocked && (
+        {adminUnlocked && (
           <View style={styles.unlockedBadge}>
             <Text style={styles.unlockedText}>ADMIN</Text>
           </View>
         )}
-        {!unlocked && tapCount > 0 && tapCount < 20 && (
-          <Text style={styles.tapHint}>{tapCount}/20</Text>
-        )}
+        {/* No visible tap counter — hidden trigger only */}
       </View>
 
       {/* Progress bar */}
@@ -90,12 +93,6 @@ const styles = StyleSheet.create({
     color: Colors.cream50,
     flex: 1,
     letterSpacing: 0.05 * 12,
-  },
-  tapHint: {
-    fontFamily: Fonts.bold,
-    fontSize: 9,
-    color: Colors.cream30,
-    letterSpacing: 0.5,
   },
   unlockedBadge: {
     backgroundColor: Colors.cream20,

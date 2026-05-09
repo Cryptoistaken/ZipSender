@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useQuery } from 'convex/react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -40,7 +42,6 @@ export default function AdminScreen() {
   const [sheet, setSheet] = useState<SheetMode>({ type: 'none' });
   const bottomSheetRef = useRef<BottomSheet>(null);
 
-  // Fetch all titles — client-side filtering by format is done in SeriesGroup
   const titles = useQuery(api.titles.list);
 
   const openSheet = useCallback((mode: SheetMode) => {
@@ -91,135 +92,176 @@ export default function AdminScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Admin header */}
-      <View style={styles.adminHeader}>
-        <Text style={styles.adminTitle}>Admin Panel</Text>
-        <Text style={styles.adminSub}>Manage catalog titles and files</Text>
-
-        {/* Filter pills */}
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        {/* Admin header with back button */}
+        <View style={styles.adminHeader}>
+          <View style={styles.adminHeaderTop}>
             <TouchableOpacity
-              key={f.key}
-              style={[styles.filterPill, filter === f.key && styles.filterPillActive]}
-              onPress={() => setFilter(f.key)}
+              style={styles.backBtn}
+              onPress={() => router.back()}
               activeOpacity={0.7}
             >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  filter === f.key && styles.filterPillTextActive,
-                ]}
-              >
-                {f.label}
-              </Text>
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={20}
+                color={Colors.cream}
+              />
             </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {titles === undefined ? (
-          <Text style={styles.loadingText}>Loading…</Text>
-        ) : titles.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No titles yet</Text>
-            <Text style={styles.emptyBody}>
-              Tap the + button to add your first title.
-            </Text>
+            <View style={styles.adminTitleBlock}>
+              <Text style={styles.adminTitle}>Admin Panel</Text>
+              <Text style={styles.adminSub}>Manage catalog titles and files</Text>
+            </View>
           </View>
-        ) : (
-          titles.map((title) => (
-            <SeriesGroup
-              key={title._id}
-              title={title}
-              formatFilter={filter}
-              onAddPart={() =>
-                openSheet({ type: 'addPart', titleId: title._id })
-              }
-              onEdit={() =>
-                openSheet({
-                  type: 'editSeries',
-                  titleId: title._id,
-                  currentName: title.name,
-                })
-              }
-              onDelete={() =>
-                openSheet({
-                  type: 'deleteSeries',
-                  titleId: title._id,
-                  titleName: title.name,
-                })
-              }
-              onDeletePart={(partId, filename) =>
-                openSheet({ type: 'deletePart', partId, filename })
-              }
-            />
-          ))
-        )}
-      </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => openSheet({ type: 'addSeries' })}
-        activeOpacity={0.85}
-      >
-        <MaterialCommunityIcons name="plus" size={26} color={Colors.surface} />
-      </TouchableOpacity>
+          {/* Filter pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {FILTERS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[
+                  styles.filterPill,
+                  filter === f.key && styles.filterPillActive,
+                ]}
+                onPress={() => setFilter(f.key)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    filter === f.key && styles.filterPillTextActive,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-      {/* Bottom sheet */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={['70%', '92%']}
-        enablePanDownToClose
-        onClose={closeSheet}
-        backgroundStyle={styles.sheetBg}
-        handleIndicatorStyle={styles.sheetHandle}
-      >
-        {renderSheet()}
-      </BottomSheet>
-    </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {titles === undefined ? (
+            <Text style={styles.loadingText}>Loading…</Text>
+          ) : titles.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>No titles yet</Text>
+              <Text style={styles.emptyBody}>
+                Tap the + button to add your first title.
+              </Text>
+            </View>
+          ) : (
+            titles.map((title) => (
+              <SeriesGroup
+                key={title._id}
+                title={title}
+                formatFilter={filter}
+                onAddPart={() =>
+                  openSheet({ type: 'addPart', titleId: title._id })
+                }
+                onEdit={() =>
+                  openSheet({
+                    type: 'editSeries',
+                    titleId: title._id,
+                    currentName: title.name,
+                  })
+                }
+                onDelete={() =>
+                  openSheet({
+                    type: 'deleteSeries',
+                    titleId: title._id,
+                    titleName: title.name,
+                  })
+                }
+                onDeletePart={(partId, filename) =>
+                  openSheet({ type: 'deletePart', partId, filename })
+                }
+              />
+            ))
+          )}
+        </ScrollView>
+
+        {/* FAB */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => openSheet({ type: 'addSeries' })}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons name="plus" size={26} color={Colors.surface} />
+        </TouchableOpacity>
+
+        {/* Bottom sheet */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={['70%', '92%']}
+          enablePanDownToClose
+          onClose={closeSheet}
+          backgroundStyle={styles.sheetBg}
+          handleIndicatorStyle={styles.sheetHandle}
+        >
+          {renderSheet()}
+        </BottomSheet>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
 
-  // matches prototype .admin-header
   adminHeader: {
-    paddingTop: 10,
+    paddingTop: 6,
     paddingHorizontal: 16,
     paddingBottom: 0,
     flexShrink: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cream10,
   },
+  adminHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  adminTitleBlock: { flex: 1 },
   adminTitle: {
     fontFamily: Fonts.extraBold,
-    fontSize: 22,
+    fontSize: 20,
     color: Colors.cream,
-    letterSpacing: -0.05 * 22,
-    marginBottom: 2,
+    letterSpacing: -0.05 * 20,
   },
   adminSub: {
     fontFamily: Fonts.light,
     fontSize: 11,
     color: Colors.cream50,
     letterSpacing: 0.02 * 11,
-    marginBottom: 14,
+    marginTop: 1,
   },
 
-  // matches prototype .filter-row / .filter-pill
   filterRow: {
     flexDirection: 'row',
     gap: 6,
-    marginBottom: 14,
-    overflow: 'scroll' as any,
+    paddingBottom: 12,
   },
   filterPill: {
     paddingHorizontal: 14,
@@ -264,14 +306,13 @@ const styles = StyleSheet.create({
     color: Colors.cream30,
   },
 
-  // matches prototype .fab
   fab: {
     position: 'absolute',
     bottom: 24,
     right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.cream,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from 'convex/react';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -42,10 +43,13 @@ export default function HomeScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
           />
-          <View style={styles.heroText}>
-            <Text style={styles.heroLabel}>ZipSender</Text>
-            <Text style={styles.heroTitle}>Your Catalog</Text>
-          </View>
+          {/* Safe area inset handled by paddingTop in heroText */}
+          <SafeAreaView style={styles.heroSafeArea} edges={['top']}>
+            <View style={styles.heroText}>
+              <Text style={styles.heroLabel}>ZipSender</Text>
+              <Text style={styles.heroTitle}>Your Catalog</Text>
+            </View>
+          </SafeAreaView>
         </View>
 
         {/* Title cards */}
@@ -75,21 +79,24 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100, paddingHorizontal: 16, paddingTop: 4 },
 
-  // ── hero strip — matches prototype .hero-strip (168px) ─────────────────────
+  // ── hero strip ─────────────────────────────────────────────────────────────
   heroStrip: {
-    height: 168,
+    height: 200,
     overflow: 'hidden',
     position: 'relative',
     marginBottom: 4,
+    marginHorizontal: -16,
   },
   heroVideo: {
     ...StyleSheet.absoluteFillObject,
   },
+  heroSafeArea: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   heroText: {
-    position: 'absolute',
-    bottom: 16,
-    left: 18,
-    right: 18,
+    paddingBottom: 16,
+    paddingHorizontal: 18,
   },
   heroLabel: {
     fontSize: 8,
@@ -134,5 +141,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.cream30,
   },
-  // cards live in scrollContent directly — padded inside ScrollView
 });

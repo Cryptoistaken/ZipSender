@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "zipsender",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -44,7 +47,16 @@
       "expo-router",
       "expo-font",
       "expo-system-ui",
-      ["expo-file-system", {}]
+      [
+        "expo-file-system",
+        {}
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "ZipSender needs access to save downloaded files."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

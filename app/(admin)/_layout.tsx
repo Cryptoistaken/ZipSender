@@ -6,17 +6,11 @@ export default function AdminLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.card },
-        headerTintColor: Colors.cream,
-        headerTitleStyle: {
-          fontFamily: Fonts.bold,
-          fontSize: 16,
-        },
-        headerShadowVisible: false,
+        headerShown: false,
         contentStyle: { backgroundColor: Colors.surface },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Admin Panel' }} />
+      <Stack.Screen name="index" />
     </Stack>
   );
 }

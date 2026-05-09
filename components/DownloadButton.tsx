@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,27 +15,52 @@ import { useDownloadsStore } from '../store/downloads';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 
-type DlState = 'idle' | 'downloading' | 'extracting' | 'done' | 'error';
+type DlState = 'idle' | 'downloading' | 'done' | 'error';
 
 interface Props {
   part: Doc<'parts'>;
   titleName: string;
 }
 
-// ── Same Drive URL pattern used in Scripts/index.js ────────────────────────
+// ── Same Drive URL + regex pattern used in Scripts/index.js ─────────────────
 // Scripts/index.js: `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`
-const DRIVE_DOWNLOAD_URL = (fileId: string) =>
-  `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-
-// ── Same regex used in Scripts/index.js ─────────────────────────────────────
 const DRIVE_ID_RE = /(?:\/d\/|[?&]id=)([a-zA-Z0-9_-]{25,})/;
 
 function parseDriveId(url: string): string {
   return url.match(DRIVE_ID_RE)?.[1] ?? url;
 }
 
+function buildDriveUrl(fileId: string): string {
+  return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+}
+
 function destDir(): string {
-  return FileSystem.documentDirectory + 'ZipSender/';
+  return (FileSystem.documentDirectory ?? '') + 'ZipSender/';
+}
+
+// ── Mirror content-type → extension map from Scripts/index.js ───────────────
+const CONTENT_TYPE_MAP: Record<string, string> = {
+  'video/mp4': '.mp4',
+  'video/x-matroska': '.mkv',
+  'video/x-msvideo': '.avi',
+  'video/quicktime': '.mov',
+  'video/webm': '.webm',
+  'video/x-m4v': '.m4v',
+};
+
+// Detect format from part.format field (set by admin when adding parts)
+// This mirrors Scripts/index.js logic: ZIP vs video determination
+function getFormatLabel(format: string): 'ZIP' | 'VIDEO' {
+  if (format === 'zip') return 'ZIP';
+  return 'VIDEO';
+}
+
+// Build safe filename from part data
+function buildFilename(part: Doc<'parts'>): string {
+  if (part.filename && part.filename !== 'file') return part.filename;
+  const fileId = parseDriveId(part.driveFileId || part.driveUrl || '');
+  const ext = part.format === 'zip' ? '.zip' : '.mp4';
+  return `${fileId.slice(0, 12)}${ext}`;
 }
 
 export default function DownloadButton({ part, titleName }: Props) {
@@ -44,11 +68,10 @@ export default function DownloadButton({ part, titleName }: Props) {
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const shimmerAnim = useRef(new Animated.Value(0)).current;
-  const dotAnim = useRef(new Animated.Value(0)).current;
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
   const addDownload = useDownloadsStore((s) => s.add);
 
-  // ── Shimmer loop while downloading ─────────────────────────────────────────
+  // ── Shimmer loop while downloading ────────────────────────────────────────
   useEffect(() => {
     if (state === 'downloading') {
       Animated.loop(
@@ -63,22 +86,6 @@ export default function DownloadButton({ part, titleName }: Props) {
       shimmerAnim.setValue(0);
     }
   }, [state, shimmerAnim]);
-
-  // ── Spinner for extracting state ────────────────────────────────────────────
-  useEffect(() => {
-    if (state === 'extracting') {
-      Animated.loop(
-        Animated.timing(dotAnim, {
-          toValue: 1,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-      ).start();
-    } else {
-      dotAnim.stopAnimation();
-      dotAnim.setValue(0);
-    }
-  }, [state, dotAnim]);
 
   const startDownload = useCallback(async () => {
     if (state !== 'idle' && state !== 'error') return;
@@ -95,9 +102,11 @@ export default function DownloadButton({ part, titleName }: Props) {
       }
 
       // Resolve Drive file ID — same logic as Scripts/index.js
-      const fileId = parseDriveId(part.driveFileId || part.driveUrl);
-      const downloadUrl = DRIVE_DOWNLOAD_URL(fileId);
-      const destPath = dir + part.filename;
+      const rawId = part.driveFileId || part.driveUrl || '';
+      const fileId = parseDriveId(rawId);
+      const downloadUrl = buildDriveUrl(fileId);
+      const filename = buildFilename(part);
+      const destPath = dir + filename;
 
       // Remove pre-existing file if re-downloading
       const existing = await FileSystem.getInfoAsync(destPath);
@@ -116,7 +125,12 @@ export default function DownloadButton({ part, titleName }: Props) {
             downloadProgress;
           if (totalBytesExpectedToWrite > 0) {
             setProgress(
-              Math.round((totalBytesWritten / totalBytesExpectedToWrite) * 100),
+              Math.min(
+                Math.round(
+                  (totalBytesWritten / totalBytesExpectedToWrite) * 100
+                ),
+                99
+              )
             );
           }
         },
@@ -126,35 +140,32 @@ export default function DownloadButton({ part, titleName }: Props) {
 
       if (!result?.uri) throw new Error('Download failed — no URI returned');
 
-      // ZIP format: simulate brief "extracting" phase
-      if (part.format === 'zip') {
-        setState('extracting');
-        await new Promise((r) => setTimeout(r, 2000));
-      }
+      setProgress(100);
 
-      finishDownload(result.uri);
+      addDownload({
+        id: part._id,
+        titleName,
+        filename,
+        size: part.size ?? '—',
+        format: part.format === 'zip' ? 'zip' : 'video',
+        downloadedAt: Date.now(),
+      });
+
+      setState('done');
     } catch (err: any) {
       // Cancelled by user — go back to idle silently
-      if (err?.message?.includes('cancelled') || err?.code === 'ERR_TASK_CANCELLED') {
+      if (
+        err?.message?.includes('cancelled') ||
+        err?.code === 'ERR_TASK_CANCELLED'
+      ) {
         setState('idle');
         return;
       }
-      setErrorMsg(err?.message ?? 'Download failed');
+      const msg = err?.message ?? 'Download failed';
+      setErrorMsg(msg.slice(0, 60));
       setState('error');
     }
-  }, [state, part]);
-
-  const finishDownload = (uri: string) => {
-    setState('done');
-    addDownload({
-      id: part._id,
-      titleName,
-      filename: part.filename,
-      size: part.size ?? '—',
-      format: part.format,
-      downloadedAt: Date.now(),
-    });
-  };
+  }, [state, part, titleName, addDownload]);
 
   const cancelDownload = useCallback(async () => {
     try {
@@ -170,30 +181,31 @@ export default function DownloadButton({ part, titleName }: Props) {
     outputRange: [-200, 200],
   });
 
-  const spinDeg = dotAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  // ── IDLE ───────────────────────────────────────────────────────────────────
+  // ── IDLE ──────────────────────────────────────────────────────────────────
   if (state === 'idle' || state === 'error') {
     return (
       <TouchableOpacity
-        style={styles.idlePill}
+        style={[styles.idlePill, state === 'error' && styles.errorPill]}
         onPress={startDownload}
         activeOpacity={0.85}
       >
-        <Text style={styles.idleLabel} numberOfLines={1}>
-          {state === 'error' ? `Retry · ${errorMsg.slice(0, 30)}` : part.label}
+        <Text style={[styles.idleLabel, state === 'error' && styles.errorLabel]} numberOfLines={1}>
+          {state === 'error'
+            ? `Retry · ${errorMsg.slice(0, 28)}`
+            : part.label || buildFilename(part)}
         </Text>
-        <View style={styles.idleIcon}>
-          <MaterialCommunityIcons name="arrow-down" size={14} color={Colors.surface} />
+        <View style={[styles.idleIcon, state === 'error' && styles.errorIcon]}>
+          <MaterialCommunityIcons
+            name={state === 'error' ? 'refresh' : 'arrow-down'}
+            size={14}
+            color={Colors.surface}
+          />
         </View>
       </TouchableOpacity>
     );
   }
 
-  // ── DOWNLOADING ────────────────────────────────────────────────────────────
+  // ── DOWNLOADING ───────────────────────────────────────────────────────────
   if (state === 'downloading') {
     return (
       <View style={styles.progressPill}>
@@ -202,7 +214,7 @@ export default function DownloadButton({ part, titleName }: Props) {
           <View
             style={[
               StyleSheet.absoluteFill,
-              { width: `${progress}%`, backgroundColor: Colors.cream20 },
+              { width: `${progress}%` as any, backgroundColor: Colors.cream20 },
             ]}
           />
           <Animated.View
@@ -223,7 +235,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         <View style={styles.progressInner}>
           <Text style={styles.progressPct}>{progress}%</Text>
           <Text style={styles.progressFilename} numberOfLines={1}>
-            {part.filename}
+            {buildFilename(part)}
           </Text>
         </View>
 
@@ -234,20 +246,7 @@ export default function DownloadButton({ part, titleName }: Props) {
     );
   }
 
-  // ── EXTRACTING ─────────────────────────────────────────────────────────────
-  if (state === 'extracting') {
-    return (
-      <View style={styles.extractingPill}>
-        <Animated.View style={{ transform: [{ rotate: spinDeg }] }}>
-          <MaterialCommunityIcons name="cog" size={14} color={Colors.cream50} />
-        </Animated.View>
-        <Text style={styles.extractingText}>Extracting</Text>
-        <Text style={styles.dots}>···</Text>
-      </View>
-    );
-  }
-
-  // ── DONE ───────────────────────────────────────────────────────────────────
+  // ── DONE ──────────────────────────────────────────────────────────────────
   return (
     <View style={styles.donePill}>
       <MaterialCommunityIcons name="check-circle" size={16} color={Colors.cream} />
@@ -264,7 +263,7 @@ export default function DownloadButton({ part, titleName }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // ── idle pill — matches prototype .btn-dl ──────────────────────────────────
+  // ── idle pill ──────────────────────────────────────────────────────────────
   idlePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,6 +280,13 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  errorPill: {
+    backgroundColor: Colors.card2,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   idleLabel: {
     fontFamily: Fonts.extraBold,
     fontSize: 12,
@@ -295,6 +301,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.black,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  errorIcon: {
+    backgroundColor: Colors.cream30,
+  },
+  errorLabel: {
+    color: Colors.cream50,
   },
 
   // ── progress pill ──────────────────────────────────────────────────────────
@@ -341,31 +353,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream10,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  // ── extracting pill ────────────────────────────────────────────────────────
-  extractingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    backgroundColor: Colors.card2,
-    borderWidth: 1,
-    borderColor: Colors.cream20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    height: 48,
-  },
-  extractingText: {
-    fontFamily: Fonts.bold,
-    fontSize: 12,
-    color: Colors.cream50,
-  },
-  dots: {
-    fontFamily: Fonts.bold,
-    fontSize: 14,
-    color: Colors.cream30,
-    letterSpacing: 2,
   },
 
   // ── done pill ──────────────────────────────────────────────────────────────

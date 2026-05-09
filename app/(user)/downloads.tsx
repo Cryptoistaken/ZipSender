@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -6,164 +6,192 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import StorageWidget from '../../components/StorageWidget';
 import { useDownloadsStore } from '../../store/downloads';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
-import ConfirmDeleteSheet from '../../components/sheets/ConfirmDeleteSheet';
+import { loadAdminUnlocked, saveAdminUnlocked } from '../../hooks/useSecretAdminTap';
 
 export default function DownloadsScreen() {
   const { items, remove } = useDownloadsStore();
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Load persisted admin state on mount
+  useEffect(() => {
+    loadAdminUnlocked().then((val) => {
+      if (val) setAdminUnlocked(true);
+    });
+  }, []);
+
   const handleAdminUnlock = useCallback(() => {
     setAdminUnlocked(true);
+    saveAdminUnlocked(true);
   }, []);
 
   const deleteItem = deleteId ? items.find((i) => i.id === deleteId) : null;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.pageTitle}>Downloads</Text>
-        <Text style={styles.pageSub}>
-          {items.length > 0 ? `${items.length} file${items.length !== 1 ? 's' : ''}` : 'Nothing yet'}
-        </Text>
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Storage widget — 20 taps unlocks admin */}
-        <StorageWidget onUnlock={handleAdminUnlock} />
-
-        {/* Revealed admin button */}
-        {adminUnlocked && (
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => router.push('/(admin)')}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons name="shield-crown" size={16} color={Colors.surface} />
-            <Text style={styles.adminButtonText}>Admin Panel</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Empty state */}
-        {items.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <MaterialCommunityIcons
-                name="tray-arrow-down"
-                size={28}
-                color={Colors.cream30}
-              />
-            </View>
-            <Text style={styles.emptyTitle}>Nothing downloaded yet</Text>
-            <Text style={styles.emptySub}>
-              Download titles from the Home tab and they'll appear here.
-            </Text>
-          </View>
-        ) : (
-          items.map((item) => (
-            // matches prototype .dl-item
-            <View key={item.id} style={styles.dlItem}>
-              {/* format badge in place of thumb */}
-              <View style={styles.dlThumb}>
-                <Text style={styles.dlThumbText}>
-                  {item.format === 'zip' ? 'ZIP' : 'MP4'}
-                </Text>
-              </View>
-
-              <View style={styles.dlInfo}>
-                <View style={styles.dlBadgeRow}>
-                  <View style={[styles.dlBadge, item.format === 'zip' ? styles.badgeZip : styles.badgeMp4]}>
-                    <Text style={[styles.dlBadgeText, item.format === 'zip' ? styles.badgeZipText : styles.badgeMp4Text]}>
-                      {item.format === 'zip' ? 'ZIP' : 'MP4'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.dlTitle} numberOfLines={1}>
-                  {item.titleName}
-                </Text>
-                <Text style={styles.dlSub} numberOfLines={1}>
-                  Downloads/ZipSender · {item.size}
-                </Text>
-              </View>
-
-              <TouchableOpacity style={styles.dlItemOpen} activeOpacity={0.7}>
-                <MaterialCommunityIcons
-                  name="folder-open-outline"
-                  size={18}
-                  color={Colors.cream50}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.dlItemOpen}
-                activeOpacity={0.7}
-                onPress={() => setDeleteId(item.id)}
-              >
-                <MaterialCommunityIcons
-                  name="trash-can-outline"
-                  size={18}
-                  color={Colors.cream50}
-                />
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
-      </ScrollView>
-
-      {/* Inline delete confirm (no bottom-sheet needed here — use Alert pattern) */}
-      {deleteId && deleteItem && (
-        <View style={styles.deleteOverlay}>
-          <View style={styles.deleteCard}>
-            <MaterialCommunityIcons
-              name="alert-circle-outline"
-              size={32}
-              color={Colors.cream50}
-            />
-            <Text style={styles.deleteTitle}>Remove download?</Text>
-            <Text style={styles.deleteBody} numberOfLines={2}>
-              "{deleteItem.titleName}" will be removed from your list.
-            </Text>
-            <View style={styles.deleteActions}>
-              <TouchableOpacity
-                style={styles.deleteCancelBtn}
-                onPress={() => setDeleteId(null)}
-              >
-                <Text style={styles.deleteCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteConfirmBtn}
-                onPress={() => {
-                  remove(deleteId);
-                  setDeleteId(null);
-                }}
-              >
-                <Text style={styles.deleteConfirmText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.pageTitle}>Downloads</Text>
+          <Text style={styles.pageSub}>
+            {items.length > 0
+              ? `${items.length} file${items.length !== 1 ? 's' : ''}`
+              : 'Nothing yet'}
+          </Text>
         </View>
-      )}
-    </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Storage widget — 20 invisible taps unlocks admin */}
+          <StorageWidget onUnlock={handleAdminUnlock} adminUnlocked={adminUnlocked} />
+
+          {/* Revealed admin button — stays once unlocked */}
+          {adminUnlocked && (
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => router.push('/(admin)')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="shield-crown"
+                size={16}
+                color={Colors.surface}
+              />
+              <Text style={styles.adminButtonText}>Admin Panel</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Empty state */}
+          {items.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <MaterialCommunityIcons
+                  name="tray-arrow-down"
+                  size={28}
+                  color={Colors.cream30}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>Nothing downloaded yet</Text>
+              <Text style={styles.emptySub}>
+                Download titles from the Home tab and they'll appear here.
+              </Text>
+            </View>
+          ) : (
+            items.map((item) => (
+              <View key={item.id} style={styles.dlItem}>
+                {/* format badge thumb */}
+                <View style={styles.dlThumb}>
+                  <Text style={styles.dlThumbText}>
+                    {item.format === 'zip' ? 'ZIP' : 'MP4'}
+                  </Text>
+                </View>
+
+                <View style={styles.dlInfo}>
+                  <View style={styles.dlBadgeRow}>
+                    <View
+                      style={[
+                        styles.dlBadge,
+                        item.format === 'zip' ? styles.badgeZip : styles.badgeMp4,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.dlBadgeText,
+                          item.format === 'zip'
+                            ? styles.badgeZipText
+                            : styles.badgeMp4Text,
+                        ]}
+                      >
+                        {item.format === 'zip' ? 'ZIP' : 'MP4'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.dlTitle} numberOfLines={1}>
+                    {item.titleName}
+                  </Text>
+                  <Text style={styles.dlSub} numberOfLines={1}>
+                    Downloads/ZipSender · {item.size}
+                  </Text>
+                </View>
+
+                <TouchableOpacity style={styles.dlItemOpen} activeOpacity={0.7}>
+                  <MaterialCommunityIcons
+                    name="folder-open-outline"
+                    size={18}
+                    color={Colors.cream50}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.dlItemOpen}
+                  activeOpacity={0.7}
+                  onPress={() => setDeleteId(item.id)}
+                >
+                  <MaterialCommunityIcons
+                    name="trash-can-outline"
+                    size={18}
+                    color={Colors.cream50}
+                  />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </ScrollView>
+
+        {/* Inline delete confirm overlay */}
+        {deleteId && deleteItem && (
+          <View style={styles.deleteOverlay}>
+            <View style={styles.deleteCard}>
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={32}
+                color={Colors.cream50}
+              />
+              <Text style={styles.deleteTitle}>Remove download?</Text>
+              <Text style={styles.deleteBody} numberOfLines={2}>
+                "{deleteItem.titleName}" will be removed from your list.
+              </Text>
+              <View style={styles.deleteActions}>
+                <TouchableOpacity
+                  style={styles.deleteCancelBtn}
+                  onPress={() => setDeleteId(null)}
+                >
+                  <Text style={styles.deleteCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteConfirmBtn}
+                  onPress={() => {
+                    remove(deleteId);
+                    setDeleteId(null);
+                  }}
+                >
+                  <Text style={styles.deleteConfirmText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
 
-  // matches prototype .page-header
   header: {
-    paddingTop: 56,
     paddingHorizontal: 18,
+    paddingTop: 10,
     paddingBottom: 14,
     flexShrink: 0,
   },
@@ -200,13 +228,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── empty state — matches prototype .empty-state ───────────────────────────
   emptyState: {
     alignItems: 'center',
     gap: 10,
     paddingTop: 40,
     paddingHorizontal: 24,
-    textAlign: 'center',
   },
   emptyIcon: {
     width: 58,
@@ -233,7 +259,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── download item — matches prototype .dl-item ─────────────────────────────
   dlItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -262,16 +287,8 @@ const styles = StyleSheet.create({
     color: Colors.cream50,
     letterSpacing: 0.8,
   },
-  dlInfo: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  dlBadgeRow: {
-    flexDirection: 'row',
-    gap: 5,
-    marginBottom: 2,
-  },
+  dlInfo: { flex: 1, minWidth: 0, gap: 2 },
+  dlBadgeRow: { flexDirection: 'row', gap: 5, marginBottom: 2 },
   dlBadge: {
     borderRadius: 999,
     paddingHorizontal: 7,
@@ -294,12 +311,7 @@ const styles = StyleSheet.create({
     color: Colors.cream,
     letterSpacing: -0.02 * 13,
   },
-  dlSub: {
-    fontFamily: Fonts.light,
-    fontSize: 10,
-    color: Colors.cream50,
-  },
-  // matches prototype .dl-item-open
+  dlSub: { fontFamily: Fonts.light, fontSize: 10, color: Colors.cream50 },
   dlItemOpen: {
     width: 34,
     height: 34,
@@ -312,7 +324,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  // ── inline delete confirm overlay ──────────────────────────────────────────
   deleteOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.6)',
