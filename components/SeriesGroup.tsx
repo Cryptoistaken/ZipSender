@@ -36,15 +36,20 @@ export default function SeriesGroup({
 
   if (!visible && parts !== undefined) return null;
 
-  const icon =
-    title.type === 'series' ? 'playlist-play' : 'video-outline';
+  const icon = title.type === 'series' ? 'playlist-play' : 'video-outline';
 
   return (
-    <View style={styles.card}>
-      {/* Header row */}
+    // matches prototype .series-group
+    <View style={styles.group}>
+      {/* Header row — matches .series-header */}
       <View style={styles.header}>
-        <MaterialCommunityIcons name={icon} size={20} color={Colors.cream50} />
-        <View style={styles.headerInfo}>
+        {/* Type icon box — matches .series-type-icon */}
+        <View style={styles.typeIcon}>
+          <MaterialCommunityIcons name={icon} size={20} color={Colors.cream50} />
+        </View>
+
+        <View style={styles.info}>
+          {/* Badges */}
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -52,154 +57,177 @@ export default function SeriesGroup({
               </Text>
             </View>
           </View>
-          <Text style={styles.titleText}>{title.name}</Text>
-          <Text style={styles.subtitleText}>
+          <Text style={styles.titleText} numberOfLines={1}>{title.name}</Text>
+          <Text style={styles.subText}>
             {title.partCount} {title.partCount === 1 ? 'file' : 'files'}
             {title.totalSize ? ' · ' + title.totalSize : ''}
           </Text>
         </View>
+
+        {/* Action buttons — matches .series-actions .icon-btn */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.iconBtn} onPress={onAddPart}>
-            <MaterialCommunityIcons name="plus" size={18} color={Colors.cream50} />
+          <TouchableOpacity style={styles.iconBtn} onPress={onAddPart} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="plus" size={16} color={Colors.cream50} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={onEdit}>
-            <MaterialCommunityIcons
-              name="pencil-outline"
-              size={18}
-              color={Colors.cream50}
-            />
+          <TouchableOpacity style={styles.iconBtn} onPress={onEdit} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.cream50} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={onDelete}>
-            <MaterialCommunityIcons
-              name="trash-can-outline"
-              size={18}
-              color={Colors.cream50}
-            />
+          <TouchableOpacity style={[styles.iconBtn, styles.iconBtnDanger]} onPress={onDelete} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.cream50} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Collapsible part list */}
-      <TouchableOpacity
-        style={styles.expandRow}
-        onPress={() => setExpanded((e) => !e)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.expandLabel}>
-          {expanded ? 'Hide files' : 'Show files'}
-        </Text>
-        <MaterialCommunityIcons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={16}
-          color={Colors.cream30}
-        />
-      </TouchableOpacity>
-
-      {expanded && (
-        <View style={styles.partList}>
-          {parts === undefined ? (
-            <Text style={styles.loadingText}>Loading…</Text>
-          ) : (
-            parts.map((part) => (
-              <PartRow
-                key={part._id}
-                part={part}
-                onDelete={() => onDeletePart(part._id, part.filename)}
-              />
-            ))
-          )}
-          <TouchableOpacity style={styles.addFileRow} onPress={onAddPart}>
+      {/* Part list — collapsible */}
+      {parts !== undefined && parts.length > 0 && (
+        <>
+          <TouchableOpacity
+            style={styles.expandRow}
+            onPress={() => setExpanded((e) => !e)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.expandLabel}>
+              {expanded ? 'Hide files' : `Show ${parts.length} file${parts.length !== 1 ? 's' : ''}`}
+            </Text>
             <MaterialCommunityIcons
-              name="plus"
-              size={14}
+              name={expanded ? 'chevron-up' : 'chevron-down'}
+              size={16}
               color={Colors.cream30}
             />
-            <Text style={styles.addFileText}>Add another file…</Text>
           </TouchableOpacity>
-        </View>
+
+          {expanded && (
+            // matches .part-list
+            <View style={styles.partList}>
+              {parts.map((part) => (
+                <PartRow
+                  key={part._id}
+                  part={part}
+                  onDelete={() => onDeletePart(part._id, part.filename)}
+                />
+              ))}
+              {/* matches .add-part-row */}
+              <TouchableOpacity style={styles.addPartRow} onPress={onAddPart} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="plus" size={14} color={Colors.cream} />
+                <Text style={styles.addPartLabel}>Add another file…</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.card,
-    borderRadius: 14,
+  // matches .series-group
+  group: {
+    backgroundColor: Colors.card2,
     borderWidth: 1,
     borderColor: Colors.cream10,
+    borderRadius: 20,
     overflow: 'hidden',
   },
+  // matches .series-header
   header: {
     flexDirection: 'row',
-    gap: 10,
-    padding: 14,
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: 11,
+    padding: 12,
+    paddingRight: 13,
   },
-  headerInfo: { flex: 1, gap: 4 },
-  badgeRow: { flexDirection: 'row', gap: 6 },
+  // matches .series-type-icon
+  typeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  info: { flex: 1, minWidth: 0, gap: 3 },
+  badgeRow: { flexDirection: 'row', gap: 5, marginBottom: 1 },
   badge: {
     backgroundColor: Colors.cream10,
-    borderRadius: 4,
-    paddingHorizontal: 6,
+    borderRadius: 999,
+    paddingHorizontal: 7,
     paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
   },
   badgeText: {
     fontFamily: Fonts.bold,
-    fontSize: 9,
+    fontSize: 8,
     color: Colors.cream50,
-    letterSpacing: 0.3,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   titleText: {
-    fontFamily: Fonts.bold,
-    fontSize: 14,
+    fontFamily: Fonts.extraBold,
+    fontSize: 13,
     color: Colors.cream,
+    letterSpacing: -0.03 * 13,
   },
-  subtitleText: {
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-    color: Colors.cream30,
+  subText: {
+    fontFamily: Fonts.light,
+    fontSize: 10,
+    color: Colors.cream50,
+    marginTop: 1,
   },
-  actions: { flexDirection: 'row', gap: 2 },
-  iconBtn: { padding: 6 },
+  // matches .series-actions
+  actions: { flexDirection: 'row', gap: 5, flexShrink: 0 },
+  // matches .icon-btn
+  iconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnDanger: {},
+
   expandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     borderTopWidth: 1,
     borderTopColor: Colors.cream10,
   },
   expandLabel: {
     fontFamily: Fonts.regular,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.cream30,
   },
+
+  // matches .part-list
   partList: {
     borderTopWidth: 1,
     borderTopColor: Colors.cream10,
-    gap: 1,
   },
-  loadingText: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    color: Colors.cream30,
-    padding: 12,
-  },
-  addFileRow: {
+
+  // matches .add-part-row
+  addPartRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    padding: 12,
+    gap: 8,
+    padding: 9,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.cream10,
-    borderStyle: 'dashed',
+    opacity: 0.55,
   },
-  addFileText: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    color: Colors.cream30,
+  addPartLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.cream,
+    letterSpacing: 0.01 * 11,
   },
 });

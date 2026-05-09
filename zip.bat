@@ -11,6 +11,7 @@ mkdir "%TEMP_DIR%"
 
 (
 echo node_modules
+echo .expo
 echo _generated
 echo exclude.txt
 echo ZipSender.zip

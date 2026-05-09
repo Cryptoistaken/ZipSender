@@ -11,63 +11,79 @@ interface Props {
 
 export default function PartRow({ part, onDelete }: Props) {
   return (
+    // matches prototype .part-row
     <View style={styles.row}>
-      <View style={styles.formatBadge}>
-        <Text style={styles.formatText}>
-          {part.format === 'zip' ? 'ZIP' : 'MP4'}
-        </Text>
+      {/* Part icon — matches .part-icon */}
+      <View style={styles.partIcon}>
+        <MaterialCommunityIcons
+          name={part.format === 'zip' ? 'zip-box-outline' : 'film-outline'}
+          size={14}
+          color={Colors.cream50}
+        />
       </View>
+
       <View style={styles.info}>
-        <Text style={styles.filename} numberOfLines={1}>
-          {part.filename}
-        </Text>
+        <Text style={styles.name} numberOfLines={1}>{part.filename}</Text>
         {part.size ? (
-          <Text style={styles.size}>{part.size}</Text>
+          <Text style={styles.meta}>{part.size}</Text>
         ) : null}
       </View>
-      <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-        <MaterialCommunityIcons
-          name="trash-can-outline"
-          size={16}
-          color={Colors.cream30}
-        />
-      </TouchableOpacity>
+
+      {/* Actions — matches .part-actions .part-btn */}
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.partBtn} onPress={onDelete} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="trash-can-outline" size={14} color={Colors.cream30} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // matches .part-row
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: Colors.card2,
+    paddingVertical: 9,
+    paddingLeft: 16,
+    paddingRight: 13,
+    borderTopWidth: 1,
+    borderTopColor: Colors.cream10,
   },
-  formatBadge: {
+  // matches .part-icon
+  partIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
     backgroundColor: Colors.cream10,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  formatText: {
+  info: { flex: 1, minWidth: 0 },
+  name: {
     fontFamily: Fonts.bold,
-    fontSize: 9,
-    color: Colors.cream50,
-    letterSpacing: 0.3,
-  },
-  info: { flex: 1 },
-  filename: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.cream,
+    letterSpacing: -0.01 * 11,
   },
-  size: {
-    fontFamily: Fonts.regular,
+  meta: {
+    fontFamily: Fonts.light,
     fontSize: 10,
-    color: Colors.cream30,
-    marginTop: 2,
+    color: Colors.cream50,
+    marginTop: 1,
   },
-  deleteBtn: { padding: 4 },
+  actions: { flexDirection: 'row', gap: 4 },
+  // matches .part-btn
+  partBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: Colors.cream10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

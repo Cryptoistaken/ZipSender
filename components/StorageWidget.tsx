@@ -10,26 +10,27 @@ interface Props {
   onUnlock: () => void;
 }
 
-function formatBytes(bytes: number): string {
-  const gb = bytes / (1024 ** 3);
-  return gb.toFixed(1) + ' GB';
+function formatGB(bytes: number): string {
+  return (bytes / 1024 ** 3).toFixed(1) + ' GB';
 }
 
 export default function StorageWidget({ onUnlock }: Props) {
   const [freeBytes, setFreeBytes] = useState<number | null>(null);
   const [totalBytes, setTotalBytes] = useState<number | null>(null);
 
-  const { handleTap, unlocked } = useSecretAdminTap(onUnlock);
+  const { handleTap, unlocked, tapCount } = useSecretAdminTap(onUnlock);
 
   useEffect(() => {
     (async () => {
       try {
-        const free = await FileSystem.getFreeDiskStorageAsync();
-        const total = await FileSystem.getTotalDiskCapacityAsync();
+        const [free, total] = await Promise.all([
+          FileSystem.getFreeDiskStorageAsync(),
+          FileSystem.getTotalDiskCapacityAsync(),
+        ]);
         setFreeBytes(free);
         setTotalBytes(total);
       } catch {
-        // Fallback values
+        // Fallback — 64 GB device at 60% used
         setTotalBytes(64 * 1024 ** 3);
         setFreeBytes(Math.round(64 * 1024 ** 3 * 0.4));
       }
@@ -38,42 +39,32 @@ export default function StorageWidget({ onUnlock }: Props) {
 
   const used = totalBytes && freeBytes ? totalBytes - freeBytes : null;
   const usedPct =
-    totalBytes && used ? Math.round((used / totalBytes) * 100) : 60;
+    totalBytes && used ? Math.min(Math.round((used / totalBytes) * 100), 100) : 60;
 
   return (
-    <TouchableOpacity
-      style={styles.widget}
-      onPress={handleTap}
-      activeOpacity={0.85}
-    >
+    <TouchableOpacity style={styles.widget} onPress={handleTap} activeOpacity={0.9}>
       <View style={styles.header}>
-        <MaterialCommunityIcons
-          name="harddisk"
-          size={18}
-          color={Colors.cream50}
-        />
+        <MaterialCommunityIcons name="harddisk" size={16} color={Colors.cream50} />
         <Text style={styles.label}>Storage</Text>
         {unlocked && (
           <View style={styles.unlockedBadge}>
-            <Text style={styles.unlockedText}>Admin unlocked</Text>
+            <Text style={styles.unlockedText}>ADMIN</Text>
           </View>
+        )}
+        {!unlocked && tapCount > 0 && tapCount < 20 && (
+          <Text style={styles.tapHint}>{tapCount}/20</Text>
         )}
       </View>
 
-      <View style={styles.barBg}>
-        <View style={[styles.barFill, { width: `${usedPct}%` }]} />
+      {/* Progress bar */}
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${usedPct}%` as any }]} />
       </View>
 
       <View style={styles.statsRow}>
-        <Text style={styles.stat}>
-          {used ? formatBytes(used) : '—'} used
-        </Text>
-        <Text style={styles.stat}>
-          {freeBytes ? formatBytes(freeBytes) : '—'} free
-        </Text>
-        <Text style={styles.stat}>
-          {totalBytes ? formatBytes(totalBytes) : '—'} total
-        </Text>
+        <Text style={styles.stat}>{used ? formatGB(used) : '—'} used</Text>
+        <Text style={styles.stat}>{freeBytes ? formatGB(freeBytes) : '—'} free</Text>
+        <Text style={styles.stat}>{totalBytes ? formatGB(totalBytes) : '—'} total</Text>
       </View>
     </TouchableOpacity>
   );
@@ -95,9 +86,16 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: Fonts.bold,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.cream50,
     flex: 1,
+    letterSpacing: 0.05 * 12,
+  },
+  tapHint: {
+    fontFamily: Fonts.bold,
+    fontSize: 9,
+    color: Colors.cream30,
+    letterSpacing: 0.5,
   },
   unlockedBadge: {
     backgroundColor: Colors.cream20,
@@ -107,17 +105,17 @@ const styles = StyleSheet.create({
   },
   unlockedText: {
     fontFamily: Fonts.bold,
-    fontSize: 9,
+    fontSize: 8,
     color: Colors.cream,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
-  barBg: {
-    height: 4,
+  track: {
+    height: 3,
     backgroundColor: Colors.cream10,
     borderRadius: 2,
     overflow: 'hidden',
   },
-  barFill: {
+  fill: {
     height: '100%',
     backgroundColor: Colors.cream50,
     borderRadius: 2,
@@ -128,7 +126,7 @@ const styles = StyleSheet.create({
   },
   stat: {
     fontFamily: Fonts.regular,
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.cream30,
   },
 });

@@ -40,6 +40,7 @@ export default function AdminScreen() {
   const [sheet, setSheet] = useState<SheetMode>({ type: 'none' });
   const bottomSheetRef = useRef<BottomSheet>(null);
 
+  // Fetch all titles — client-side filtering by format is done in SeriesGroup
   const titles = useQuery(api.titles.list);
 
   const openSheet = useCallback((mode: SheetMode) => {
@@ -91,25 +92,31 @@ export default function AdminScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Filter pills */}
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.pill, filter === f.key && styles.pillActive]}
-            onPress={() => setFilter(f.key)}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.pillText,
-                filter === f.key && styles.pillTextActive,
-              ]}
+      {/* Admin header */}
+      <View style={styles.adminHeader}>
+        <Text style={styles.adminTitle}>Admin Panel</Text>
+        <Text style={styles.adminSub}>Manage catalog titles and files</Text>
+
+        {/* Filter pills */}
+        <View style={styles.filterRow}>
+          {FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterPill, filter === f.key && styles.filterPillActive]}
+              onPress={() => setFilter(f.key)}
+              activeOpacity={0.7}
             >
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[
+                  styles.filterPillText,
+                  filter === f.key && styles.filterPillTextActive,
+                ]}
+              >
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <ScrollView
@@ -184,34 +191,60 @@ export default function AdminScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
+
+  // matches prototype .admin-header
+  adminHeader: {
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+    flexShrink: 0,
+  },
+  adminTitle: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 22,
+    color: Colors.cream,
+    letterSpacing: -0.05 * 22,
+    marginBottom: 2,
+  },
+  adminSub: {
+    fontFamily: Fonts.light,
+    fontSize: 11,
+    color: Colors.cream50,
+    letterSpacing: 0.02 * 11,
+    marginBottom: 14,
+  },
+
+  // matches prototype .filter-row / .filter-pill
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cream10,
+    gap: 6,
+    marginBottom: 14,
+    overflow: 'scroll' as any,
   },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: Colors.cream20,
+    backgroundColor: 'transparent',
   },
-  pillActive: {
+  filterPillActive: {
     backgroundColor: Colors.cream,
     borderColor: Colors.cream,
   },
-  pillText: {
+  filterPillText: {
     fontFamily: Fonts.bold,
-    fontSize: 12,
+    fontSize: 9,
     color: Colors.cream50,
-    letterSpacing: 0.3,
+    letterSpacing: 0.1 * 9,
+    textTransform: 'uppercase',
   },
-  pillTextActive: { color: Colors.surface },
+  filterPillTextActive: { color: Colors.black },
+
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 12, paddingBottom: 100 },
+  scrollContent: { padding: 16, gap: 10, paddingBottom: 100 },
+
   loadingText: {
     fontFamily: Fonts.regular,
     fontSize: 14,
@@ -230,20 +263,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.cream30,
   },
+
+  // matches prototype .fab
   fab: {
     position: 'absolute',
     bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.black,
+    shadowColor: Colors.cream,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
     elevation: 8,
   },
   sheetBg: { backgroundColor: Colors.card2 },

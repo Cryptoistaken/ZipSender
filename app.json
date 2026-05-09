@@ -21,16 +21,30 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#101010"
-      }
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.zipsender.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "ZipSender needs access to save downloaded files.",
+        "NSDocumentsFolderUsageDescription": "ZipSender needs access to save downloaded files."
+      }
     },
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-system-ui"
+      "expo-system-ui",
+      ["expo-file-system", {}]
     ],
     "experiments": {
       "typedRoutes": true

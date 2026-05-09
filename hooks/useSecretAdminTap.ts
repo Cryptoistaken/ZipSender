@@ -6,6 +6,7 @@ const WINDOW_MS = 4000;
 export function useSecretAdminTap(onUnlock: () => void) {
   const tapsRef = useRef<number[]>([]);
   const [unlocked, setUnlocked] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
 
   const handleTap = useCallback(() => {
     if (unlocked) return;
@@ -14,13 +15,15 @@ export function useSecretAdminTap(onUnlock: () => void) {
     tapsRef.current = [...tapsRef.current, now].filter(
       (t) => now - t < WINDOW_MS,
     );
+    setTapCount(tapsRef.current.length);
 
     if (tapsRef.current.length >= TAP_TARGET) {
       tapsRef.current = [];
+      setTapCount(0);
       setUnlocked(true);
       onUnlock();
     }
   }, [unlocked, onUnlock]);
 
-  return { handleTap, unlocked };
+  return { handleTap, unlocked, tapCount };
 }
