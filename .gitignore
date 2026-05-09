@@ -12,7 +12,7 @@ web-build/
 *.orig.*
 web-build/
 .env.local
-package-lock.json
+
 .env
 tmp/
 ZipSender.zip
