@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useMutation, useAction, anyApi } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
+import { anyApi } from 'convex/server';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Colors } from '../../constants/colors';

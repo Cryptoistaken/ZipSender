@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BottomSheetView } from '@gorhom/bottom-sheet';
-import { useMutation, useAction, anyApi } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
+import { anyApi } from 'convex/server';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { Colors } from '../../constants/colors';
