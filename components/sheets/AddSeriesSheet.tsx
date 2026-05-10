@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useMutation, useAction } from 'convex/react';
+import { useMutation, useAction, anyApi } from 'convex/react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Colors } from '../../constants/colors';
@@ -48,7 +48,7 @@ export default function AddSeriesSheet({ onClose }: Props) {
 
   const createTitle = useMutation(api.titles.create);
   const addPart = useMutation(api.parts.add);
-  const getFileMeta = useAction(api.drive.getFileMeta);
+  const getFileMeta = useAction(anyApi.drive.getFileMeta);
 
   const fetchMeta = async (rowId: string, url: string) => {
     if (!url.trim() || !DRIVE_ID_RE.test(url)) return;

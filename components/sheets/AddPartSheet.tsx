@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BottomSheetView } from '@gorhom/bottom-sheet';
-import { useMutation, useAction } from 'convex/react';
+import { useMutation, useAction, anyApi } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { Colors } from '../../constants/colors';
@@ -38,7 +38,7 @@ export default function AddPartSheet({ titleId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
 
   const addPart = useMutation(api.parts.add);
-  const getFileMeta = useAction(api.drive.getFileMeta);
+  const getFileMeta = useAction(anyApi.drive.getFileMeta);
 
   const fetchMeta = async (raw: string) => {
     if (!raw.trim() || !DRIVE_ID_RE.test(raw)) return;
