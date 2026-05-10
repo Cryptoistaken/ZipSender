@@ -1,92 +1,66 @@
-# ZipSender
+# Zipsender
 
-A React Native + Expo + TypeScript mobile app for browsing and downloading media from Google Drive.
-
-## Stack
-
-| Layer | Choice |
-|---|---|
-| Framework | Expo SDK 51 (managed workflow) |
-| Language | TypeScript (strict) |
-| Navigation | Expo Router (file-based) |
-| Backend | Convex |
-| Styling | StyleSheet (no NativeWind) |
-| Icons | `@expo/vector-icons` — MaterialCommunityIcons |
-| Fonts | Almarai via `@expo-google-fonts/almarai` |
-
-## Project structure
-
-```
-ZipSender/
-├── app/
-│   ├── _layout.tsx              Root layout — ConvexProvider + fonts
-│   ├── (user)/
-│   │   ├── _layout.tsx          Bottom tabs: Home | Downloads
-│   │   ├── index.tsx            Home — title catalog
-│   │   └── downloads.tsx        Downloads — completed files + secret admin tap
-│   └── (admin)/
-│       ├── _layout.tsx          Stack header
-│       └── index.tsx            Admin panel — manage titles and parts
-├── components/
-│   ├── TitleCard.tsx            Home screen card
-│   ├── DownloadButton.tsx       idle → downloading → extracting → done
-│   ├── SeriesGroup.tsx          Admin collapsible title card
-│   ├── StorageWidget.tsx        Disk usage + 20-tap secret
-│   ├── PartRow.tsx              Admin part row
-│   └── sheets/
-│       ├── AddSeriesSheet.tsx
-│       ├── AddPartSheet.tsx
-│       ├── EditSeriesSheet.tsx
-│       └── ConfirmDeleteSheet.tsx
-├── store/
-│   └── downloads.ts             Zustand + AsyncStorage
-├── constants/
-│   ├── colors.ts                Design tokens
-│   └── fonts.ts                 Font family name constants
-├── hooks/
-│   └── useSecretAdminTap.ts     20-tap / 4s window logic
-└── convex/                      Backend (deploy separately)
-    └── convex/
-        ├── schema.ts
-        ├── titles.ts
-        └── parts.ts
-```
+A minimal zero-native desktop app with a web frontend.
 
 ## Setup
 
-### 1. Deploy the Convex backend
+`zig build dev`, `zig build run`, and `zig build package` install frontend dependencies automatically. To install them explicitly, run:
 
-```bash
-cd convex
-npm install
-npx convex dev
+```sh
+npm install --prefix frontend
 ```
 
-Copy the deployment URL from the output.
+The generated build defaults to this zero-native framework path:
 
-### 2. Configure the app
-
-Edit `.env`:
+```text
+C:\Users\Ratul\AppData\Roaming\npm\node_modules\zero-native
 
 ```
-EXPO_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+
+Override it with `-Dzero-native-path=/path/to/zero-native` if you move this app.
+
+## Commands
+
+```sh
+zig build dev
+zig build run
+zig build test
+zig build package
+zero-native doctor --manifest app.zon
 ```
 
-Also update `convex/.env.local` with the same URL and your team slug.
+`zig build dev` starts the frontend dev server from `app.zon`, waits for it, and launches the native shell with `ZERO_NATIVE_FRONTEND_URL`.
 
-### 3. Install and run
+Frontend:
 
-```bash
-npm install
-npx expo start
+- Type: next
+- Production assets: `frontend/out`
+- Dev URL: `http://127.0.0.1:3000/`
+
+## Web Engines
+
+The generated app defaults to the system WebView. On macOS you can switch to Chromium/CEF with:
+
+```sh
+zero-native cef install
+zig build run -Dplatform=macos -Dweb-engine=chromium
 ```
 
-## Admin access
+`zero-native cef install` downloads zero-native's prepared CEF runtime, including the native wrapper library.
 
-From the **Downloads** tab, tap the Storage widget **20 times within 4 seconds**. An "Admin Panel" button will appear.
+For one-command local setup, opt into build-time install:
 
-## Building an APK
+```sh
+zig build run -Dplatform=macos -Dweb-engine=chromium -Dcef-auto-install=true
+```
 
-Push to `main` or trigger the **Build Android APK** workflow manually from GitHub Actions. The debug APK will be available as a downloadable artifact for 14 days.
+Use `-Dcef-dir=/path/to/cef` when you keep CEF outside the platform default under `third_party/cef`.
 
-**Required secret:** Add `EXPO_PUBLIC_CONVEX_URL` to your repo's GitHub secrets before running the workflow.
+```sh
+zero-native doctor --web-engine chromium
+```
+
+Diagnostics:
+
+- Set `ZERO_NATIVE_LOG_DIR` to override the platform log directory during development.
+- Set `ZERO_NATIVE_LOG_FORMAT=text|jsonl` to choose persistent log format.
