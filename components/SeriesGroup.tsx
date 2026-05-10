@@ -26,8 +26,8 @@ export default function SeriesGroup({
   onDeletePart,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  // Fix: removed `as Doc<'parts'>[] | undefined` cast — caused "type instantiation
-  // is excessively deep" error. useQuery already returns the correct inferred type.
+  // Fix: use explicit annotation instead of `as` cast — the cast caused
+  // "type instantiation is excessively deep and possibly infinite" (TS2589).
   const partsResult = useQuery(api.parts.listByTitle, { titleId: title._id });
   const parts: Doc<'parts'>[] | undefined = partsResult ?? undefined;
 
