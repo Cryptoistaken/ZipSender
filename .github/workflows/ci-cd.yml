@@ -19,6 +19,15 @@ on:
         type: choice
         options: ["false", "true"]
 
+# Cancel stale runs when a new commit is pushed to the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege default — individual jobs elevate only what they need
+permissions:
+  contents: read
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared env
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,11 +45,14 @@ jobs:
   lint:
     name: Type-check & Lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -53,17 +65,14 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Generate Convex types
-        # Runs from convex/ dir; CLI finds convex/convex/convex.json and writes
-        # _generated into convex/convex/_generated/.
         working-directory: convex
         run: npx convex codegen --typecheck disable
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
-      - name: Copy _generated to path expected by the app
-        # All app source files import from  <repo-root>/convex/_generated/
-        # but codegen writes to             <repo-root>/convex/convex/_generated/
-        # This step bridges the gap so the root tsc can resolve those imports.
+      - name: Copy _generated to app-expected path
+        # App imports from <root>/convex/_generated/ but codegen writes to
+        # <root>/convex/convex/_generated/ — bridge the gap for tsc.
         run: cp -r convex/convex/_generated convex/_generated
 
       - name: TypeScript type-check (app)
@@ -81,12 +90,15 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     needs: lint
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -102,32 +114,33 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: unit-test-results-${{ github.run_number }}
           path: reports/unit-tests.xml
           retention-days: 14
+          if-no-files-found: warn
 
   # ── 3. Debug APK build ────────────────────────────────────────────────────
   build-debug:
     name: Build Debug APK
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     needs: test
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-    outputs:
-      apk-name: zipsender-debug-${{ github.run_number }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c5195efecf7bdfc987ee8b902f2fe3e47b0e52f # v4.7.1
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -184,7 +197,7 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ~/.gradle/caches
@@ -201,13 +214,14 @@ jobs:
           ./gradlew assembleDebug \
             --no-daemon \
             --build-cache \
+            --stacktrace \
             --gradle-user-home ~/.gradle
         env:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipsender-debug-${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -218,22 +232,26 @@ jobs:
   build-release:
     name: Build Release APK (Signed)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     needs: test
+    permissions:
+      contents: write # required for softprops/action-gh-release to create releases
     if: |
       startsWith(github.ref, 'refs/tags/v') ||
       github.event.inputs.release == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c5195efecf7bdfc987ee8b902f2fe3e47b0e52f # v4.7.1
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -301,7 +319,7 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ~/.gradle/caches
@@ -318,6 +336,7 @@ jobs:
           ./gradlew assembleRelease \
             --no-daemon \
             --build-cache \
+            --stacktrace \
             --gradle-user-home ~/.gradle
         env:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
@@ -328,7 +347,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zipsender-release-${{ github.run_number }}
           path: android/app/build/outputs/apk/release/app-release.apk
@@ -337,7 +356,7 @@ jobs:
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267f # v2
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
           name: "ZipSender ${{ github.ref_name }}"
@@ -351,8 +370,10 @@ jobs:
   notify-failure:
     name: Notify on Failure
     runs-on: ubuntu-24.04
-    needs: [lint, test, build-debug]
+    timeout-minutes: 5
+    needs: [lint, test, build-debug, build-release]
     if: failure()
+
     steps:
       - name: Post failure summary
         run: |
