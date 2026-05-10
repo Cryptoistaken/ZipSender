@@ -30,7 +30,7 @@
     "expo-system-ui": "~4.0.9",
     "expo-video": "~2.0.6",
     "@expo-google-fonts/almarai": "^0.2.3",
-    "@expo/vector-icons": "^14.0.4",
+    "@expo/vector-icons": "~14.0.4",
     "@gorhom/bottom-sheet": "^4.6.4",
     "react": "18.3.1",
     "react-native": "0.76.9",
@@ -43,7 +43,7 @@
     "expo-asset": "~10.0.10",
     "expo-media-library": "~16.0.5",
     "react-native-zip-archive": "^7.1.1",
-    "expo-intent-launcher": "~12.0.3"
+    "expo-intent-launcher": "~13.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
