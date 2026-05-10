@@ -30,37 +30,42 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// Opens the system file manager pointed at the ZipSender folder
+// Opens the system file manager pointed at the ZipSender Downloads folder
 async function openFolder(folderPath: string) {
   try {
     if (Platform.OS === 'android') {
-      // Try to open the exact folder via a file:// URI with the FILES app
-      const uri = folderPath.startsWith('file://') ? folderPath : `file://${folderPath}`;
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: uri,
-        type: 'resource/folder',
-        flags: 1,
-      });
-    } else {
-      await Linking.openURL(folderPath);
-    }
-  } catch {
-    // Fallback: open system Files app root
-    try {
-      await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
-        category: 'android.intent.category.APP_FILES',
-      });
-    } catch {
-      // Last fallback: generic storage intent
+      // Best approach: open the system Downloads app directly
+      // android.provider.Downloads.ACTION_VIEW_DOWNLOADS navigates to Downloads
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW_DOWNLOADS');
+        return;
+      } catch {}
+
+      // Fallback 1: open via content URI for the Downloads folder
       try {
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
           data: 'content://com.android.externalstorage.documents/root/primary',
-          type: '*/*',
           flags: 1,
         });
+        return;
       } catch {}
+
+      // Fallback 2: open the system Files app
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
+          category: 'android.intent.category.APP_FILES',
+        });
+        return;
+      } catch {}
+
+      // Fallback 3: open via Linking with a content URI
+      try {
+        await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
+      } catch {}
+    } else {
+      await Linking.openURL(folderPath);
     }
-  }
+  } catch {}
 }
 
 async function playFile(filePath: string) {
@@ -78,6 +83,11 @@ async function playFile(filePath: string) {
   } catch {
     try { await Linking.openURL(filePath); } catch {}
   }
+}
+
+// Strip file:// prefix so FileSystem.deleteAsync gets a plain path on Android
+function toFsPath(uri: string): string {
+  return uri.startsWith('file://') ? uri.slice(7) : uri;
 }
 
 // ── Delete confirmation modal ─────────────────────────────────────────────────
@@ -162,7 +172,7 @@ function ExtractedFileRow({ file, onDelete, isLast }: ExtractedRowProps) {
 
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteModal(false);
-    try { await FileSystem.deleteAsync(file.filePath, { idempotent: true }); } catch {}
+    try { await FileSystem.deleteAsync(toFsPath(file.filePath), { idempotent: true }); } catch {}
     onDelete();
   }, [file.filePath, onDelete]);
 
@@ -207,41 +217,48 @@ function DlCard({ item, onDelete }: DlCardProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  const handleExpand = useCallback(async () => {
-    if (!expanded && item.format === 'zip') {
-      try {
-        const extractDir = item.folderPath + 'extracted/';
-        const entries = await FileSystem.readDirectoryAsync(extractDir).catch(() => []);
-        const fresh: ExtractedFile[] = [];
-        for (const entry of entries) {
-          if (VIDEO_EXT.some((e) => entry.toLowerCase().endsWith(e))) {
-            const fp = extractDir + entry;
-            const info = await FileSystem.getInfoAsync(fp, { size: true });
-            if (info.exists) {
-              fresh.push({ filename: entry, filePath: fp, size: (info as any).size ?? 0 });
-            }
+  // Refresh file list from disk when expanding
+  const refreshFiles = useCallback(async (): Promise<ExtractedFile[]> => {
+    try {
+      const extractDir = item.folderPath + 'extracted/';
+      const entries = await FileSystem.readDirectoryAsync(extractDir).catch(() => []);
+      const fresh: ExtractedFile[] = [];
+      for (const entry of entries) {
+        if (VIDEO_EXT.some((e) => entry.toLowerCase().endsWith(e))) {
+          const fp = extractDir + entry;
+          const info = await FileSystem.getInfoAsync(fp, { size: true });
+          if (info.exists) {
+            fresh.push({ filename: entry, filePath: fp, size: (info as any).size ?? 0 });
           }
         }
-        setLocalFiles(fresh.sort((a, b) => a.filename.localeCompare(b.filename)));
-      } catch {
-        setLocalFiles(item.extractedFiles ?? []);
       }
+      return fresh.sort((a, b) => a.filename.localeCompare(b.filename));
+    } catch {
+      return item.extractedFiles ?? [];
+    }
+  }, [item]);
+
+  const handleExpand = useCallback(async () => {
+    if (!expanded && item.format === 'zip') {
+      const fresh = await refreshFiles();
+      setLocalFiles(fresh);
     }
     setExpanded((v) => !v);
-  }, [expanded, item]);
+  }, [expanded, item.format, refreshFiles]);
 
   const removeFile = useCallback((filePath: string) => {
     setLocalFiles((prev) => prev.filter((f) => f.filePath !== filePath));
   }, []);
 
-  // Animate out then call onDelete (which removes from store)
+  // Delete files from disk AND remove the card
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteModal(false);
-    // Delete all files on disk first
+    // Remove the folder from disk — works for both file:// URIs and plain paths
     try {
-      await FileSystem.deleteAsync(item.folderPath, { idempotent: true });
+      const fsPath = toFsPath(item.folderPath);
+      await FileSystem.deleteAsync(fsPath, { idempotent: true });
     } catch {}
-    // Animate out
+    // Animate card out, then remove from store
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 200,
@@ -251,7 +268,11 @@ function DlCard({ item, onDelete }: DlCardProps) {
 
   const isZip = item.format === 'zip';
   const fileCount = localFiles.length;
+  // Single-video zip: skip the dropdown, render inline play instead
+  const isSingleVideoZip = isZip && fileCount === 1;
+
   const folderLabel = item.folderPath
+    .replace('file:///storage/emulated/0/', '/sdcard/')
     .replace(FileSystem.documentDirectory ?? '', '')
     .replace(/\/$/, '');
 
@@ -264,8 +285,18 @@ function DlCard({ item, onDelete }: DlCardProps) {
         onCancel={() => setShowDeleteModal(false)}
       />
       <Animated.View style={[styles.dlCard, { opacity: fadeAnim }]}>
-        {/* Header row */}
-        <View style={styles.dlCardHeader}>
+
+        {/*
+          ── Card header ──────────────────────────────────────────────────────
+          The whole header is a TouchableOpacity for multi-video zips so tapping
+          anywhere on the body expands the list. For single-video zips and plain
+          videos the header is non-interactive (action buttons handle taps).
+        */}
+        <TouchableOpacity
+          activeOpacity={isZip && !isSingleVideoZip ? 0.7 : 1}
+          onPress={isZip && !isSingleVideoZip ? handleExpand : undefined}
+          style={styles.dlCardHeader}
+        >
           {/* Thumb icon */}
           <View style={styles.dlThumb}>
             <MaterialCommunityIcons
@@ -292,18 +323,36 @@ function DlCard({ item, onDelete }: DlCardProps) {
             </Text>
           </View>
 
-          {/* Action buttons — open folder + expand (zip) or play (video) + delete */}
+          {/* Action buttons — stop propagation so they don't also trigger expand */}
           <View style={styles.dlActions}>
-            {/* Play (video) or expand (zip) */}
-            {!isZip && localFiles.length > 0 && (
-              <TouchableOpacity style={styles.dlBtn} onPress={() => playFile(localFiles[0].filePath)} activeOpacity={0.7}>
+            {/* Play — plain video or single-video zip */}
+            {(!isZip && localFiles.length > 0) && (
+              <TouchableOpacity
+                style={styles.dlBtn}
+                onPress={() => playFile(localFiles[0].filePath)}
+                activeOpacity={0.7}
+              >
                 <MaterialCommunityIcons name="play" size={16} color={Colors.cream} />
               </TouchableOpacity>
             )}
-            {isZip && (
-              <TouchableOpacity style={styles.dlBtn} onPress={handleExpand} activeOpacity={0.7}>
-                <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={17} color={Colors.cream} />
+            {isSingleVideoZip && (
+              <TouchableOpacity
+                style={styles.dlBtn}
+                onPress={() => playFile(localFiles[0].filePath)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="play" size={16} color={Colors.cream} />
               </TouchableOpacity>
+            )}
+            {/* Chevron for multi-video zips (visual affordance; full card is tappable) */}
+            {isZip && !isSingleVideoZip && (
+              <View style={styles.dlBtn} pointerEvents="none">
+                <MaterialCommunityIcons
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={17}
+                  color={Colors.cream}
+                />
+              </View>
             )}
 
             {/* Open folder */}
@@ -315,7 +364,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
               <MaterialCommunityIcons name="folder-open-outline" size={16} color={Colors.cream50} />
             </TouchableOpacity>
 
-            {/* Delete — opens confirmation modal */}
+            {/* Delete */}
             <TouchableOpacity
               style={styles.dlBtn}
               onPress={() => setShowDeleteModal(true)}
@@ -324,7 +373,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
               <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.cream50} />
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Folder path hint */}
         <View style={styles.dlPathRow}>
@@ -332,8 +381,8 @@ function DlCard({ item, onDelete }: DlCardProps) {
           <Text style={styles.dlPath} numberOfLines={1}>{folderLabel}</Text>
         </View>
 
-        {/* Expanded extracted files */}
-        {isZip && expanded && (
+        {/* Expanded extracted files — only for multi-video zips */}
+        {isZip && !isSingleVideoZip && expanded && (
           <View style={styles.extractedList}>
             {localFiles.length === 0 ? (
               <View style={styles.extractedEmpty}>

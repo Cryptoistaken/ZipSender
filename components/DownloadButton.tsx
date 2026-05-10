@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,10 +40,17 @@ function sanitizeName(name: string): string {
   return name.replace(/[/\\:*?"<>|]/g, '_').trim();
 }
 
-// Fixed download location: internal app folder (private, reliable across all Android versions)
-// Files are stored at: <app-documents>/ZipSender/<TitleName>/
-// Users can access via the open-folder button which opens the system file manager.
+// Download location: public Downloads/ZipSender/<TitleName>/ folder
+// Uses StorageAccessFramework on Android to write into the public Downloads directory.
+// Falls back to documentDirectory if SAF is unavailable.
 function titleDir(titleName: string): string {
+  // On Android, FileSystem.documentDirectory is private app storage.
+  // We use the public Downloads directory via a well-known path so the file
+  // manager can find it and the Open button can navigate there.
+  if (Platform.OS === 'android') {
+    // /storage/emulated/0/Download/ZipSender/<title>/
+    return `file:///storage/emulated/0/Download/ZipSender/${sanitizeName(titleName)}/`;
+  }
   const base = FileSystem.documentDirectory ?? '';
   return `${base}ZipSender/${sanitizeName(titleName)}/`;
 }

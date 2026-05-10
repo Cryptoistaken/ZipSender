@@ -19,7 +19,8 @@ function HeroStrip() {
   const player = useVideoPlayer(HERO_VIDEO_URL, (p) => {
     p.loop = true;
     p.muted = true;
-    p.play();
+    // Load the first frame but keep it paused — acts as a static poster
+    p.pause();
   });
 
   return (
