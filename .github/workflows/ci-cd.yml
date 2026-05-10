@@ -83,9 +83,12 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Expo lint
-        # `expo lint` does not accept --max-warnings itself; for flags beyond what
-        # expo lint exposes, the Expo docs recommend calling `npx eslint` directly.
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0
+        # Use `npx expo lint -- --max-warnings 0` to forward --max-warnings through
+        # expo lint's `--` boundary to the underlying local ESLint binary.
+        # Do NOT use `npx eslint` directly — it re-downloads ESLint latest (v10+)
+        # which requires flat config (eslint.config.js) and removes --ext support,
+        # both incompatible with this project's existing .eslintrc setup.
+        run: npx expo lint -- --max-warnings 0
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
