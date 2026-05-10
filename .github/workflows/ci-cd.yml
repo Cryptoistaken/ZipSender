@@ -61,11 +61,24 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Install ESLint
-        # eslint is not a direct dependency of this project — expo lint normally
-        # invokes it via npx (downloading latest). We pin a legacy-compatible
-        # version explicitly so we can call the local binary with full flag support.
-        # eslint@8 is the last version that supports .eslintrc and --ext / --max-warnings.
+        # eslint is NOT in the project's devDependencies — expo lint normally downloads
+        # it on demand via npx. We install eslint@8 explicitly (last version supporting
+        # .eslintrc legacy config, --ext, and --max-warnings) so we can call the binary
+        # directly with full flag control. eslint-config-expo provides the 'expo' preset.
         run: npm install --no-save --legacy-peer-deps eslint@8 eslint-config-expo
+
+      - name: Create ESLint config
+        # The project has no .eslintrc file — expo lint would normally bootstrap one
+        # interactively. We create a minimal legacy config here for CI.
+        # Scripts/ is excluded because it has its own package.json (ESLint would stop
+        # its upward config search there and fail with "no config found").
+        run: |
+          cat > .eslintrc.js << 'ESLINT'
+          module.exports = {
+            extends: ['expo'],
+            ignorePatterns: ['Scripts/', 'convex/', 'android/', 'node_modules/'],
+          };
+          ESLINT
 
       - name: Install convex backend dependencies
         working-directory: convex
@@ -90,10 +103,9 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Lint
-        # eslint@8 was installed explicitly above (pinned legacy version).
-        # --ext and --max-warnings are eslint@8 flags; both are dropped in eslint@9+.
-        # The local binary is used so the version is fully under our control.
-        run: ./node_modules/.bin/eslint --ext .js,.jsx,.ts,.tsx --max-warnings 0 .
+        # Calls the locally installed eslint@8 binary directly.
+        # Targets only the app source dirs; Scripts/ and convex/ are already in ignorePatterns.
+        run: ./node_modules/.bin/eslint --ext .js,.jsx,.ts,.tsx --max-warnings 0 app components hooks store constants
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
