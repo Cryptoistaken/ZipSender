@@ -53,12 +53,18 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Generate Convex types
-        # `convex codegen` reads local convex/ files and writes _generated/ — no server needed.
-        # CONVEX_DEPLOY_KEY is only needed for deploy/dev, not codegen.
+        # Runs from convex/ dir; CLI finds convex/convex/convex.json and writes
+        # _generated into convex/convex/_generated/.
         working-directory: convex
         run: npx convex codegen --typecheck disable
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
+      - name: Copy _generated to path expected by the app
+        # All app source files import from  <repo-root>/convex/_generated/
+        # but codegen writes to             <repo-root>/convex/convex/_generated/
+        # This step bridges the gap so the root tsc can resolve those imports.
+        run: cp -r convex/convex/_generated convex/_generated
 
       - name: TypeScript type-check (app)
         run: npx tsc --noEmit --skipLibCheck
