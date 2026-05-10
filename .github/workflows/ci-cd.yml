@@ -19,12 +19,10 @@ on:
         type: choice
         options: ["false", "true"]
 
-# Cancel stale runs when a new commit is pushed to the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege default — individual jobs elevate only what they need
 permissions:
   contents: read
 
@@ -36,6 +34,8 @@ env:
   NODE_VERSION: "24"
   JAVA_VERSION: "17"
   CONVEX_URL: "https://majestic-fennec-666.eu-west-1.convex.cloud"
+  KS_PASS: "zipsender123"
+  KS_ALIAS: "zipsender"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Jobs
@@ -48,11 +48,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -103,11 +101,9 @@ jobs:
     needs: lint
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -139,17 +135,14 @@ jobs:
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -165,26 +158,23 @@ jobs:
           mkdir -p assets
           python3 - <<'PYEOF'
           import struct, zlib, os
-
-          def make_dark_png(path, w=1024, h=1024, color=(16,16,16)):
+          def make_png(path, w=1024, h=1024, color=(16,16,16)):
               if os.path.exists(path) and os.path.getsize(path) > 100:
                   return
               def chunk(name, data):
                   c = struct.pack('>I', len(data)) + name + data
                   return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
-              r, g, b = color
+              r,g,b = color
               sig  = b'\x89PNG\r\n\x1a\n'
               ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-              raw  = b''.join(b'\x00' + bytes([r,g,b] * w) for _ in range(h))
+              raw  = b''.join(b'\x00' + bytes([r,g,b]*w) for _ in range(h))
               idat = chunk(b'IDAT', zlib.compress(raw))
               iend = chunk(b'IEND', b'')
-              with open(path, 'wb') as f:
-                  f.write(sig + ihdr + idat + iend)
-
-          make_dark_png('assets/icon.png')
-          make_dark_png('assets/adaptive-icon.png')
-          make_dark_png('assets/splash.png')
-          make_dark_png('assets/favicon.png', 64, 64)
+              with open(path,'wb') as f: f.write(sig+ihdr+idat+iend)
+          make_png('assets/icon.png')
+          make_png('assets/adaptive-icon.png')
+          make_png('assets/splash.png')
+          make_png('assets/favicon.png', 64, 64)
           PYEOF
 
       - name: Expo prebuild (Android)
@@ -237,7 +227,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  # ── 4. Release APK build (auto-signed) ───────────────────────────────────
+  # ── 4. Release APK build (auto-signed) ────────────────────────────────────
   build-release:
     name: Build Release APK
     runs-on: ubuntu-24.04
@@ -247,17 +237,14 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -273,80 +260,80 @@ jobs:
           mkdir -p assets
           python3 - <<'PYEOF'
           import struct, zlib, os
-
-          def make_dark_png(path, w=1024, h=1024, color=(16,16,16)):
+          def make_png(path, w=1024, h=1024, color=(16,16,16)):
               if os.path.exists(path) and os.path.getsize(path) > 100:
                   return
               def chunk(name, data):
                   c = struct.pack('>I', len(data)) + name + data
                   return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
-              r, g, b = color
+              r,g,b = color
               sig  = b'\x89PNG\r\n\x1a\n'
               ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-              raw  = b''.join(b'\x00' + bytes([r,g,b] * w) for _ in range(h))
+              raw  = b''.join(b'\x00' + bytes([r,g,b]*w) for _ in range(h))
               idat = chunk(b'IDAT', zlib.compress(raw))
               iend = chunk(b'IEND', b'')
-              with open(path, 'wb') as f:
-                  f.write(sig + ihdr + idat + iend)
-
-          make_dark_png('assets/icon.png')
-          make_dark_png('assets/adaptive-icon.png')
-          make_dark_png('assets/splash.png')
-          make_dark_png('assets/favicon.png', 64, 64)
+              with open(path,'wb') as f: f.write(sig+ihdr+idat+iend)
+          make_png('assets/icon.png')
+          make_png('assets/adaptive-icon.png')
+          make_png('assets/splash.png')
+          make_png('assets/favicon.png', 64, 64)
           PYEOF
 
       - name: Expo prebuild (Android)
-        # Must run BEFORE keytool so android/app/ directory exists
+        # prebuild must run BEFORE keytool — it creates android/app/
         run: npx expo prebuild --platform android --clean --no-install
         env:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
-      - name: Generate keystore (auto — new each run, fine for internal use)
-        # android/app/ now exists after prebuild above
+      - name: Generate keystore
+        # android/app/ now exists — safe to write keystore here
         run: |
           keytool -genkeypair \
             -keystore android/app/release.jks \
-            -alias zipsender \
+            -alias "${{ env.KS_ALIAS }}" \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -storepass zipsender123 \
-            -keypass zipsender123 \
+            -storepass "${{ env.KS_PASS }}" \
+            -keypass "${{ env.KS_PASS }}" \
             -dname "CN=ZipSender, OU=Family, O=ZipSender, L=Unknown, ST=Unknown, C=US" \
             -noprompt
 
-      - name: Inject signing config into build.gradle
+      - name: Inject signing config into app/build.gradle
+        # Expo 52 / RN 0.76 generates build.gradle with a 'release' buildType block.
+        # We append a signingConfigs block and wire it in using gradle.properties values
+        # so no regex is needed to find the exact insertion point inside buildTypes.
         run: |
-          python3 - <<'PYEOF'
-          import re
+          # Write signing credentials to gradle.properties (read by build.gradle below)
+          cat >> android/gradle.properties << 'EOF'
+          ZIPSENDER_STORE_FILE=release.jks
+          ZIPSENDER_STORE_PASSWORD=zipsender123
+          ZIPSENDER_KEY_ALIAS=zipsender
+          ZIPSENDER_KEY_PASSWORD=zipsender123
+          EOF
 
-          path = 'android/app/build.gradle'
-          text = open(path).read()
+          # Append a signing config + wire it into the release buildType via a
+          # second android{} block — Gradle merges multiple android{} blocks, so
+          # this is safe and avoids touching the prebuild-generated content at all.
+          cat >> android/app/build.gradle << 'GRADLE'
 
-          signing_configs = """
+          // ── Release signing (added by CI) ──────────────────────────────────
+          android {
               signingConfigs {
                   release {
-                      storeFile file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "release.jks")
-                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                      storeFile file(ZIPSENDER_STORE_FILE)
+                      storePassword ZIPSENDER_STORE_PASSWORD
+                      keyAlias ZIPSENDER_KEY_ALIAS
+                      keyPassword ZIPSENDER_KEY_PASSWORD
                   }
               }
-          """
-
-          if 'signingConfigs' not in text:
-              text = text.replace('    buildTypes {', signing_configs + '    buildTypes {', 1)
-
-          text = re.sub(
-              r'(release\s*\{)',
-              r'\1\n            signingConfig signingConfigs.release',
-              text,
-              count=1
-          )
-
-          open(path, 'w').write(text)
-          print("build.gradle patched with signing config.")
-          PYEOF
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
 
       - name: Bundle JavaScript
         run: |
@@ -384,10 +371,6 @@ jobs:
         env:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
-          ANDROID_KEYSTORE_PATH: release.jks
-          ANDROID_KEY_ALIAS: zipsender
-          ANDROID_KEYSTORE_PASSWORD: zipsender123
-          ANDROID_KEY_PASSWORD: zipsender123
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
@@ -409,7 +392,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── 5. Notify on failure ──────────────────────────────────────────────────
+  # ── 5. Notify on failure ───────────────────────────────────────────────────
   notify-failure:
     name: Notify on Failure
     runs-on: ubuntu-24.04
