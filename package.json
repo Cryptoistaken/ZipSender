@@ -13,7 +13,9 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"]
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ]
   },
   "dependencies": {
     "convex": "^1.13.0",
@@ -40,8 +42,8 @@
     "@react-native-async-storage/async-storage": "1.23.1",
     "expo-asset": "~10.0.10",
     "expo-media-library": "~16.0.5",
-    "react-native-zip-archive": "^5.0.7",
-    "expo-intent-launcher": "~11.0.3"
+    "react-native-zip-archive": "",
+    "expo-intent-launcher": ""
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
