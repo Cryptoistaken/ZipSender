@@ -3,7 +3,7 @@
 > **Every value in this file is extracted directly from the prototype source code. Zero guessing.**
 > Use as the single source of truth when building any screen or component.
 >
-> **Revision note:** Cross-verified against `app.html` line-by-line. Corrections applied: `.card-sub` letter-spacing fixed (0.02em → 0.01em); Section 6.5 added (ghost button, separator, legacy done-row, card-level progress bar, dl-item thumbnail, card image strip); view-toggle pill fully documented; multi-part card stack structure clarified; dl-item badge row/info structure expanded.
+> **Revision note (v3):** Cross-verified against `app.html` line-by-line. Corrections applied: `.card-sub` letter-spacing fixed (0.02em → 0.01em); Section 6.5 added (ghost button, separator, legacy done-row, card-level progress bar, dl-item thumbnail, card image strip); view-toggle pill fully documented; multi-part card stack structure clarified; dl-item badge row/info structure expanded. **v3 corrections:** `.page-sub` and `.admin-sub` letter-spacing documented (0.02em); `done-pill` entrance animation added (fadeUp 0.3s cubic-bezier); `done-row-new` animation documented; `field-select` appearance:none noted; card badge-row gap corrected (8px, not inside card-img when image strip present); hero overlay terminal color corrected (#000, not a variable); `dl-item` margin-bottom corrected to 8px in spacing table; `extracting-wrap` right-side icon clarified; `storage-bar-used` border-radius corrected (999px 0 0 999px).
 
 ---
 
@@ -86,7 +86,9 @@ Active button: `background: var(--cream); color: var(--black)`
 | `.field-input` | Almarai | 400 | 12px | — | — |
 | `.btn-primary`, `.btn-cancel`, `.btn-confirm-destruct` | Almarai | 700 | 13px | — | — |
 | `.type-btn` | Almarai | 700 | 12px | — | — |
-| `.card-sub`, `.page-sub`, `.admin-sub` | Almarai | 300 | 11px | 0.01em | color: --cream50 |
+| `.card-sub` | Almarai | 300 | 11px | 0.01em | color: --cream50 |
+| `.page-sub` | Almarai | 300 | 11px | 0.02em | color: --cream50 |
+| `.admin-sub` | Almarai | 300 | 11px | 0.02em | color: --cream50 |
 | `.sheet-sub` | Almarai | — | 11px | — | color: --cream50 |
 | `.dl-progress-pill-label` | Almarai | 700 | 11px | — | — |
 | `.dl-progress-pill-pct` | Almarai | 800 | 11px | -0.02em | color: --cream |
@@ -165,7 +167,7 @@ Active button: `background: var(--cream); color: var(--black)`
 | Filter pill | `5px 14px` |
 | Series group margin-bottom | `10px` |
 | Card margin-bottom | `10px` |
-| Download list item | `12px 13px` |
+| Download list item | `12px 13px` (padding); margin-bottom `8px` |
 | FAB | `bottom: 10px; right: 16px` |
 | Status bar | `14px 20px 0` (right-aligned) |
 | Status bar height | `42px` |
@@ -230,7 +232,7 @@ Every screen: `display: flex; flex-direction: column; flex: 1; overflow: hidden;
 
 **Hero strip:**
 - `<video autoplay loop muted playsinline>` or `<img>`, `object-fit: cover`
-- Gradient overlay: `linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.1) 40%, #000 100%)`
+- Gradient overlay: `linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.1) 40%, #000 100%)` — terminal value is literal `#000`, not a CSS variable
 - Text: `position: absolute; bottom: 16px; left: 18px; right: 18px`
   - Label: "ZIPSENDER" — 8px, 700, 0.18em, uppercase, `--cream50`, margin-bottom 3px
   - Title: "Your " (Almarai 800) + "videos" (Instrument Serif italic) — 26px, 800, -0.05em, line-height 1
@@ -239,7 +241,7 @@ Every screen: `display: flex; flex-direction: column; flex: 1; overflow: hidden;
 - `--card2` bg, `1px solid --cream10` border (hover: `--cream20`), radius 22px, margin-bottom 10px, overflow hidden
 - Optional image strip: see Section 6.5 `.card-img` — 88px tall, fade gradient to `#212121`, badges overlaid inside
 - Card body padding: `13px 15px 15px`
-- Badge row: `display: flex; align-items: center; gap: 8px; margin-bottom: 4px`
+- Badge row: `display: flex; align-items: center; gap: 8px; margin-bottom: 4px` — lives inside `.card-body` when no image strip is present; lives inside `.card-img-badges` (bottom: 10px; left: 14px; gap: 6px) when a `.card-img` strip is present
 - Title: 14px, 800, -0.03em, margin-bottom 2px, color `--cream`
 - Sub: 11px, 300, `--cream50`, **letter-spacing 0.01em**, margin-bottom 12px
 - Download action(s) below sub
@@ -304,8 +306,8 @@ Nav icons: Home → `solar:home-linear`, Downloads → `solar:download-linear`
 ```
 [Status bar — 42px]
 [.admin-header — padding: 10px 16px 14px]
-  title: "Admin " + <serif>Panel</serif>
-  sub: "ZipSender · Manage your catalog"
+  title: "Admin " + <serif>Panel</serif>   → 22px, 800, -0.05em, --cream, margin-bottom 2px
+  sub: "ZipSender · Manage your catalog"  → 11px, 300, --cream50, letter-spacing 0.02em, margin-bottom 14px
   [.filter-row]
 [.scroll — id="admin-scroll", flex: 1, overflow-y: auto]
   → series groups
@@ -473,6 +475,7 @@ Older-style done state that may appear in content cards as a fallback.
                 display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .done-label   { font-size: 12px; font-weight: 700; color: var(--cream); }
 .done-path    { font-size: 10px; color: var(--cream50); }
+/* .done-row-new variant: animation: fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both; gap: 9px; padding: 0 */
 ```
 > The modern replacement is `.done-pill` (Section 7 State 4). Use `.done-pill` for new screens.
 
@@ -576,7 +579,7 @@ animation: fadeUp 0.2s cubic-bezier(0.16,1,0.3,1) both;
 - Left icon: `solar:archive-linear`, `--cream50`, w15, `animation: spin 1.5s linear infinite`
 - "Extracting…": 12px, 700, `--cream80`, `flex: 1`
 - Dots (`.extracting-dots span`): 3×(4×4px, `border-radius: 50%`, `--cream50`), `animation: dlPulse 1s ease-in-out infinite`, delays: 0s / 0.2s / 0.4s
-- Right circle: 34×34px, radius 50%, `#2a2a2a` bg, `1px solid #3a3a3a`, contains `solar:archive-linear` `--cream50` w15
+- Right circle: 34×34px, radius 50%, `#2a2a2a` bg, `1px solid #3a3a3a`, contains `solar:archive-linear` `--cream50` w15 (static, not spinning — only the left icon spins)
 
 ZIP only. Skipped for video/mp4. Duration: 1500ms then → done.
 
@@ -643,6 +646,9 @@ font-family: Almarai; font-size: 12px; color: var(--cream); outline: none;
 transition: border-color 0.15s;
 /* placeholder: --cream50; focus border: --cream50 */
 ```
+
+### Select / Dropdown (`.field-select`):
+Same visual as `.field-input` but with `appearance: none; cursor: pointer` — no native OS arrow; custom styling assumed in real build.
 
 ### Button row: `display: flex; gap: 8px; margin-top: 14px`
 
@@ -753,7 +759,7 @@ Top row: `display: flex; align-items: center; justify-content: space-between; ma
 - Total: 11px, 700, -0.01em, `--cream`
 
 Bar (`.storage-bar`): `height: 6px; border-radius: 999px; background: --cream10; overflow: hidden; display: flex; margin-bottom: 10px`
-- Fill: `background: --cream; height: 100%; border-radius: 999px 0 0 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1)`
+- Fill: `background: --cream; height: 100%; border-radius: 999px 0 0 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1)` — note: only left corners are rounded; right end is flush (0 0) to meet the empty track
 - Fill `::after` (divider): `position: absolute; right: 0; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.3)`
 - Animates in: rAF + 120ms setTimeout
 
