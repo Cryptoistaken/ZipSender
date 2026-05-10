@@ -14,7 +14,7 @@ import {
 } from "@expo-google-fonts/almarai";
 import { InstrumentSerif_400Regular_Italic } from "@expo-google-fonts/instrument-serif";
 import * as SplashScreen from "expo-splash-screen";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import * as IntentLauncher from "expo-intent-launcher";
 import AsyncStorage from "@react-native-async-storage/async-storage";

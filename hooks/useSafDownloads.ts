@@ -17,7 +17,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
 const { StorageAccessFramework: SAF } = FileSystem;

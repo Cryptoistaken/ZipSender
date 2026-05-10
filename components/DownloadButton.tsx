@@ -9,7 +9,7 @@ import {
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { unzip } from 'react-native-zip-archive';
 import { Doc } from '../convex/_generated/dataModel';
 import { useDownloadsStore, ExtractedFile } from '../store/downloads';

@@ -67,9 +67,6 @@ jobs:
           module.exports = {
             extends: ['expo'],
             ignorePatterns: ['Scripts/', 'convex/', 'android/', 'node_modules/'],
-            rules: {
-              'import/no-unresolved': ['error', { ignore: ['expo-file-system/legacy'] }],
-            },
           };
           ESLINT
 

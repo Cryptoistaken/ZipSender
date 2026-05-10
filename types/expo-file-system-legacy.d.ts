@@ -1,15 +1,14 @@
 /**
- * Type shim for expo-file-system/legacy subpath.
+ * This file is intentionally empty.
  *
- * expo-file-system@~18.0.11 (SDK 52) does not declare the /legacy subpath
- * in its package.json exports map, so TypeScript cannot resolve it.
- * The runtime module exists; this shim restores type coverage.
+ * Previously declared a module shim for 'expo-file-system/legacy', but
+ * expo-file-system@~18.0.11 (SDK 52) has no /legacy subpath at all —
+ * Metro cannot resolve it at bundle time regardless of type shims.
  *
- * Note: FileSystemFileInfo does not exist in this version — use the
- * discriminated union FileInfo instead: `if (info.exists) { info.size }`.
+ * All imports were changed to use 'expo-file-system' directly, which
+ * exports StorageAccessFramework, DownloadResumable, and all other
+ * APIs used by this project.
  *
- * Remove this file once expo-file-system is upgraded to SDK 53+.
+ * The /legacy subpath only exists in SDK 53+. Remove this file if
+ * upgrading Expo beyond SDK 52.
  */
-declare module 'expo-file-system/legacy' {
-  export * from 'expo-file-system';
-}

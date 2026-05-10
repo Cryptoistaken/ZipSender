@@ -107,9 +107,9 @@ ZipSender/
 
 Always import as:
 ```ts
-import * as FileSystem from 'expo-file-system/legacy'
+import * as FileSystem from 'expo-file-system'
 ```
-Never `from 'expo-file-system'` — `StorageAccessFramework` is in the legacy module and the plain import path is deprecated from SDK 55+.
+`StorageAccessFramework`, `DownloadResumable`, and all other APIs are exported from the root path in SDK 52. The `/legacy` subpath does **not** exist in SDK 52 — Metro cannot resolve it at bundle time.
 
 When calling `FileSystem.getInfoAsync(path, { size: true })`, narrow the type using the discriminated union — `FileSystemFileInfo` does not exist in SDK 52, use `FileInfo` directly:
 ```ts
@@ -242,8 +242,9 @@ All 20 issues from the initial audit were fixed, plus 4 TypeScript errors from `
 23. `dp` implicit `any` in `DownloadButton.tsx` line 180 — annotated as `FileSystem.DownloadProgressData` (TS7006)
 24. `e` implicit `any` in `useSafDownloads.ts` line 136 — annotated as `string` in the `entries.find()` callback; was cascading from unresolved `SAF.readDirectoryAsync` type (fixed by shim in #21) (TS7006)
 25. `FileSystemFileInfo` does not exist in `expo-file-system` SDK 52 — replaced both casts in `DownloadButton.tsx` with clean `info.exists ? info.size : 0` using the `FileInfo` discriminated union directly (TS2694 ×2)
-26. ESLint `import/no-unresolved` for `expo-file-system/legacy` — added `ignore: ['expo-file-system/legacy']` to `import/no-unresolved` rule in the CI-generated `.eslintrc.js` (in `ci-cd.yml`); confirmed fix locally with eslint@8 + eslint-config-expo
+26. ESLint `import/no-unresolved` for `expo-file-system/legacy` — added `ignore` rule in CI `.eslintrc.js` (later removed when root cause was fixed)
 27. `build-debug` job disabled — set `if: false` on the job and removed it from `notify-failure` needs
+28. Metro bundler cannot resolve `expo-file-system/legacy` — the subpath does not exist in SDK 52 at all; changed all 4 imports (`app/_layout.tsx`, `app/(user)/downloads.tsx`, `components/DownloadButton.tsx`, `hooks/useSafDownloads.ts`) from `expo-file-system/legacy` → `expo-file-system`; removed the `/legacy` ESLint ignore rule from CI as no longer needed; updated type shim to a no-op comment
 
 All 20 issues from the initial audit were fixed:
 
