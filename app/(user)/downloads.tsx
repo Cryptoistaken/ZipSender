@@ -272,8 +272,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
   const isSingleVideoZip = isZip && fileCount === 1;
 
   const folderLabel = item.folderPath
-    .replace('file:///storage/emulated/0/', '/sdcard/')
-    .replace(FileSystem.documentDirectory ?? '', '')
+    .replace(FileSystem.documentDirectory ?? '', 'ZipSender/')
     .replace(/\/$/, '');
 
   return (

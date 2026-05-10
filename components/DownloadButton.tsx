@@ -40,17 +40,10 @@ function sanitizeName(name: string): string {
   return name.replace(/[/\\:*?"<>|]/g, '_').trim();
 }
 
-// Download location: public Downloads/ZipSender/<TitleName>/ folder
-// Uses StorageAccessFramework on Android to write into the public Downloads directory.
-// Falls back to documentDirectory if SAF is unavailable.
+// Download location: private app documents directory (always writable, no permissions needed).
+// Files are stored at: <app-documents>/ZipSender/<TitleName>/
+// expo-file-system cannot write to public /Download on Android 10+ without SAF.
 function titleDir(titleName: string): string {
-  // On Android, FileSystem.documentDirectory is private app storage.
-  // We use the public Downloads directory via a well-known path so the file
-  // manager can find it and the Open button can navigate there.
-  if (Platform.OS === 'android') {
-    // /storage/emulated/0/Download/ZipSender/<title>/
-    return `file:///storage/emulated/0/Download/ZipSender/${sanitizeName(titleName)}/`;
-  }
   const base = FileSystem.documentDirectory ?? '';
   return `${base}ZipSender/${sanitizeName(titleName)}/`;
 }
