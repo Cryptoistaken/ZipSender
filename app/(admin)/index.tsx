@@ -12,7 +12,7 @@ import { useQuery } from 'convex/react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
+import { Doc, Id } from '../../convex/_generated/dataModel';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 import SeriesGroup from '../../components/SeriesGroup';
@@ -158,7 +158,7 @@ export default function AdminScreen() {
               </Text>
             </View>
           ) : (
-            titles.map((title) => (
+            titles.map((title: Doc<'titles'>) => (
               <SeriesGroup
                 key={title._id}
                 title={title}

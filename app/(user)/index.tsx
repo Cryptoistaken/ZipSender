@@ -6,6 +6,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
+import { Doc } from '../../convex/_generated/dataModel';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 import TitleCard from '../../components/TitleCard';
@@ -67,7 +68,7 @@ export default function HomeScreen() {
             <Text style={styles.emptyBody}>Check back soon for new content.</Text>
           </View>
         ) : (
-          titles.map((title) => <TitleCard key={title._id} title={title} />)
+          titles.map((title: Doc<'titles'>) => <TitleCard key={title._id} title={title} />)
         )}
       </ScrollView>
     </View>

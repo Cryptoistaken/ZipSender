@@ -26,13 +26,13 @@ export default function SeriesGroup({
   onDeletePart,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const parts = useQuery(api.parts.listByTitle, { titleId: title._id });
+  const parts = useQuery(api.parts.listByTitle, { titleId: title._id }) as Doc<'parts'>[] | undefined;
 
   // Client-side format filter
   const visible =
     formatFilter === 'all'
       ? true
-      : parts?.some((p) => p.format === formatFilter);
+      : parts?.some((p: Doc<'parts'>) => p.format === formatFilter);
 
   if (!visible && parts !== undefined) return null;
 
@@ -99,7 +99,7 @@ export default function SeriesGroup({
           {expanded && (
             // matches .part-list
             <View style={styles.partList}>
-              {parts.map((part) => (
+              {parts.map((part: Doc<'parts'>) => (
                 <PartRow
                   key={part._id}
                   part={part}

@@ -16,7 +16,7 @@ export default function PartRow({ part, onDelete }: Props) {
       {/* Part icon — matches .part-icon */}
       <View style={styles.partIcon}>
         <MaterialCommunityIcons
-          name={part.format === 'zip' ? 'zip-box-outline' : 'film-outline'}
+          name={(part.format === 'zip' ? 'zip-box-outline' : 'film-outline') as any}
           size={14}
           color={Colors.cream50}
         />

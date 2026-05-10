@@ -14,8 +14,8 @@ interface Props {
 export default function TitleCard({ title }: Props) {
   const parts = useQuery(api.parts.listByTitle, { titleId: title._id });
 
-  const hasZip = parts?.some((p) => p.format === 'zip');
-  const hasVideo = parts?.some((p) => p.format === 'video');
+  const hasZip = parts?.some((p: Doc<'parts'>) => p.format === 'zip');
+  const hasVideo = parts?.some((p: Doc<'parts'>) => p.format === 'video');
 
   const subtitle = parts
     ? `${title.partCount} ${title.partCount === 1 ? 'part' : 'parts'}${title.totalSize ? ' · ' + title.totalSize : ''}`
@@ -64,7 +64,7 @@ export default function TitleCard({ title }: Props) {
           {parts === undefined ? (
             <Text style={styles.loadingText}>Loading…</Text>
           ) : (
-            parts.map((part) => (
+            parts.map((part: Doc<'parts'>) => (
               <DownloadButton key={part._id} part={part} titleName={title.name} />
             ))
           )}
