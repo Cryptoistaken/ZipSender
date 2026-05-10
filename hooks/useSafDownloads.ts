@@ -133,7 +133,7 @@ export async function copyToPublicDownloads(
         const entries = await SAF.readDirectoryAsync(parentUri).catch(() => [] as string[]);
         // SAF URIs end with the encoded folder name after %3A or the last /
         const encodedName = encodeURIComponent(name);
-        const found = entries.find((e) => {
+        const found = entries.find((e: string) => {
           const tail = e.split('%3A').pop() ?? e.split('/').pop() ?? '';
           return decodeURIComponent(tail) === name || tail === encodedName;
         });

@@ -235,6 +235,14 @@ The `ensureAppDir()` call runs alongside permissions to create `<documentDirecto
 
 ## Bug fixes applied (session log)
 
+All 20 issues from the initial audit were fixed, plus 4 TypeScript errors from `npx tsc --noEmit` resolved in a follow-up pass:
+
+**TypeScript errors fixed (follow-up pass)**
+21. `expo-file-system/legacy` subpath types missing — created `types/expo-file-system-legacy.d.ts` shim that re-exports from `expo-file-system`; fixes `app/(user)/downloads.tsx`, `app/_layout.tsx`, `components/DownloadButton.tsx`, `hooks/useSafDownloads.ts` (TS2307 ×4)
+22. `api.drive` missing from app-level generated API — added `drive` import to `convex/_generated/api.d.ts`; fixes `AddPartSheet.tsx` + `AddSeriesSheet.tsx` (TS2339 ×2)
+23. `dp` implicit `any` in `DownloadButton.tsx` line 180 — annotated as `FileSystem.DownloadProgressData` (TS7006)
+24. `e` implicit `any` in `useSafDownloads.ts` line 136 — annotated as `string` in the `entries.find()` callback; was cascading from unresolved `SAF.readDirectoryAsync` type (fixed by shim in #21) (TS7006)
+
 All 20 issues from the initial audit were fixed:
 
 **Critical**

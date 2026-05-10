@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as drive from "../convex/drive.js";
 import type * as parts from "../convex/parts.js";
 import type * as titles from "../convex/titles.js";
 
@@ -25,6 +26,7 @@ import type * as titles from "../convex/titles.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  drive: typeof drive;
   parts: typeof parts;
   titles: typeof titles;
 }>;

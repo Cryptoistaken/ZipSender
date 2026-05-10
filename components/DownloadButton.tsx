@@ -177,7 +177,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         downloadUrl,
         destPath,
         { headers: { 'User-Agent': 'Mozilla/5.0' } },
-        (dp) => {
+        (dp: FileSystem.DownloadProgressData) => {
           const { totalBytesWritten, totalBytesExpectedToWrite } = dp;
           if (totalBytesExpectedToWrite > 0) {
             setProgress(Math.min(Math.round((totalBytesWritten / totalBytesExpectedToWrite) * 100), 99));
