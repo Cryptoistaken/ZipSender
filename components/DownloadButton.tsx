@@ -96,6 +96,7 @@ function AnimatedDots() {
     useRef(new Animated.Value(0.3)).current,
   ];
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
@@ -133,6 +134,7 @@ export default function DownloadButton({ part, titleName }: Props) {
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
 
   // Sync with store changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const downloaded = items.some((i) => i.id === part._id);
     if (!downloaded && state === 'done') setState('idle');
@@ -140,6 +142,7 @@ export default function DownloadButton({ part, titleName }: Props) {
   }, [items, part._id]);
 
   // Shimmer animation when downloading
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (state === 'downloading') {
       Animated.loop(
@@ -248,7 +251,7 @@ export default function DownloadButton({ part, titleName }: Props) {
   }, [state, part, titleName, addDownload]);
 
   const cancelDownload = useCallback(async () => {
-    try { await downloadResumable.current?.cancelAsync(); } catch (_) {}
+    try { await downloadResumable.current?.cancelAsync(); } catch {}
     downloadResumable.current = null;
     setState('idle');
     setProgress(0);

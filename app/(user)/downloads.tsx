@@ -51,7 +51,7 @@ async function openFolder(folderPath: string) {
     }
   } catch {
     // Fallback: open generic file manager
-    try { await IntentLauncher.startActivityAsync('android.intent.action.MAIN', { category: 'android.intent.category.APP_FILES' }); } catch (_) {}
+    try { await IntentLauncher.startActivityAsync('android.intent.action.MAIN', { category: 'android.intent.category.APP_FILES' }); } catch {}
   }
 }
 
@@ -67,9 +67,9 @@ async function playFile(filePath: string) {
     } else {
       await Linking.openURL(filePath);
     }
-  } catch (e) {
+  } catch {
     // Fallback: try Linking directly
-    try { await Linking.openURL(filePath); } catch (_) {}
+    try { await Linking.openURL(filePath); } catch {}
   }
 }
 
@@ -84,7 +84,7 @@ function ExtractedFileRow({ file, onDelete, isLast }: ExtractedRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleDelete = useCallback(async () => {
-    try { await FileSystem.deleteAsync(file.filePath, { idempotent: true }); } catch (_) {}
+    try { await FileSystem.deleteAsync(file.filePath, { idempotent: true }); } catch {}
     onDelete();
   }, [file.filePath, onDelete]);
 
@@ -150,7 +150,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
           }
         }
         setLocalFiles(fresh.sort((a, b) => a.filename.localeCompare(b.filename)));
-      } catch (_) {
+      } catch {
         setLocalFiles(item.extractedFiles ?? []);
       }
     }

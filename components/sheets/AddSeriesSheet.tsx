@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -113,7 +112,7 @@ export default function AddSeriesSheet({ onClose }: Props) {
         });
       }
       onClose();
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Failed to publish. Try again.');
     } finally {
       setLoading(false);

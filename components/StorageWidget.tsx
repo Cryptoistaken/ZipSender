@@ -44,6 +44,7 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
   const usedPct = totalBytes && used ? Math.min(used / totalBytes, 1) : 0.6;
 
   // Animate bar width on mount — matches prototype rAF + 120ms setTimeout
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const t = setTimeout(() => {
       Animated.timing(barAnim, {
