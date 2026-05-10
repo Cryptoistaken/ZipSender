@@ -90,13 +90,13 @@ async function saveToMediaLibrary(filePaths: string[]): Promise<void> {
 
 // ── Animated extracting dots ─────────────────────────────────────────────────
 function AnimatedDots() {
-  const dots = [
-    useRef(new Animated.Value(0.3)).current,
-    useRef(new Animated.Value(0.3)).current,
-    useRef(new Animated.Value(0.3)).current,
-  ];
+  const dotsRef = useRef([
+    new Animated.Value(0.3),
+    new Animated.Value(0.3),
+    new Animated.Value(0.3),
+  ]);
+  const dots = dotsRef.current;
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
@@ -110,7 +110,7 @@ function AnimatedDots() {
     );
     anim.start();
     return () => anim.stop();
-  }, []);
+  }, [dots]);
 
   return (
     <View style={styles.dotsRow}>
@@ -133,16 +133,17 @@ export default function DownloadButton({ part, titleName }: Props) {
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
 
-  // Sync with store changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Sync with store changes — intentionally omits `state` to avoid
+  // feedback loops; setState calls here are one-directional corrections.
   useEffect(() => {
     const downloaded = items.some((i) => i.id === part._id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (!downloaded && state === 'done') setState('idle');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (downloaded && state === 'idle') setState('done');
-  }, [items, part._id]);
+  }, [items, part._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shimmer animation when downloading
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (state === 'downloading') {
       Animated.loop(
@@ -152,7 +153,7 @@ export default function DownloadButton({ part, titleName }: Props) {
       shimmerAnim.stopAnimation();
       shimmerAnim.setValue(0);
     }
-  }, [state]);
+  }, [state, shimmerAnim]);
 
   const startDownload = useCallback(async () => {
     if (state !== 'idle' && state !== 'error') return;
