@@ -83,10 +83,9 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Expo lint
-        # expo lint forwards args after `--` to ESLint; --max-warnings is an ESLint flag,
-        # not an expo-lint flag, so it must be passed through the -- boundary.
-        # `npm run lint -- -- --max-warnings 0` becomes `expo lint -- --max-warnings 0`
-        run: npm run lint -- -- --max-warnings 0
+        # `expo lint` does not accept --max-warnings itself; for flags beyond what
+        # expo lint exposes, the Expo docs recommend calling `npx eslint` directly.
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
