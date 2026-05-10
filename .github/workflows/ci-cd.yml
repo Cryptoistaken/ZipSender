@@ -60,6 +60,13 @@ jobs:
       - name: Install root dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install ESLint
+        # eslint is not a direct dependency of this project — expo lint normally
+        # invokes it via npx (downloading latest). We pin a legacy-compatible
+        # version explicitly so we can call the local binary with full flag support.
+        # eslint@8 is the last version that supports .eslintrc and --ext / --max-warnings.
+        run: npm install --no-save --legacy-peer-deps eslint@8 eslint-config-expo
+
       - name: Install convex backend dependencies
         working-directory: convex
         run: npm install --legacy-peer-deps
@@ -83,18 +90,10 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Lint
-        # Root cause analysis:
-        # 1. `expo lint -- --max-warnings 0` fails: SDK 52 expo lint does NOT support
-        #    flag forwarding via `--`. The --max-warnings flag is rejected as unknown.
-        # 2. `npx eslint` downloads latest ESLint (v10+) which requires flat config
-        #    (eslint.config.js) and drops --ext — breaks this project's .eslintrc setup.
-        # Fix: invoke the LOCAL ESLint binary from node_modules directly.
-        # This respects the pinned ESLint version and the existing legacy .eslintrc config.
-        run: >-
-          ./node_modules/.bin/eslint
-          --ext .js,.jsx,.ts,.tsx
-          --max-warnings 0
-          .
+        # eslint@8 was installed explicitly above (pinned legacy version).
+        # --ext and --max-warnings are eslint@8 flags; both are dropped in eslint@9+.
+        # The local binary is used so the version is fully under our control.
+        run: ./node_modules/.bin/eslint --ext .js,.jsx,.ts,.tsx --max-warnings 0 .
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
