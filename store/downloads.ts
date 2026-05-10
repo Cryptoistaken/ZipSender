@@ -2,13 +2,22 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface ExtractedFile {
+  filename: string;   // e.g. "True Beauty S01E01 720p.mkv"
+  filePath: string;   // absolute URI on-device
+  size: number;       // bytes
+}
+
 export interface DownloadedItem {
   id: string;
   titleName: string;
-  filename: string;
-  size: string;
+  filename: string;       // original downloaded filename
+  folderPath: string;     // absolute folder URI, e.g. .../Downloads/ZipSender/True Beauty season 01/
+  size: string;           // human-readable total size
   format: 'zip' | 'video';
   downloadedAt: number;
+  // populated after extraction (for zips) or immediately (for single videos)
+  extractedFiles: ExtractedFile[];
 }
 
 interface DownloadsState {
@@ -31,7 +40,7 @@ export const useDownloadsStore = create<DownloadsState>()(
       clear: () => set({ items: [] }),
     }),
     {
-      name: 'zipsender-downloads',
+      name: 'zipsender-downloads-v2',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),
