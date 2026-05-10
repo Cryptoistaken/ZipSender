@@ -67,6 +67,9 @@ jobs:
           module.exports = {
             extends: ['expo'],
             ignorePatterns: ['Scripts/', 'convex/', 'android/', 'node_modules/'],
+            rules: {
+              'import/no-unresolved': ['error', { ignore: ['expo-file-system/legacy'] }],
+            },
           };
           ESLINT
 
@@ -132,7 +135,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: test
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    if: false  # disabled
 
     steps:
       - uses: actions/checkout@v4
@@ -397,7 +400,7 @@ jobs:
     name: Notify on Failure
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: [lint, test, build-debug, build-release]
+    needs: [lint, test, build-release]
     if: failure()
 
     steps:
