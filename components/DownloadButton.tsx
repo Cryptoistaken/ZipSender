@@ -72,7 +72,7 @@ async function scanVideoFiles(dir: string): Promise<ExtractedFile[]> {
       if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
         const filePath = dir + entry;
         const info = await FileSystem.getInfoAsync(filePath, { size: true });
-        const size = info.exists && 'size' in info ? (info as FileSystem.FileSystemFileInfo).size : 0;
+        const size = info.exists ? info.size : 0;
         results.push({ filename: entry, filePath, size });
       }
     }
@@ -222,7 +222,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         }
       } else {
         const info = await FileSystem.getInfoAsync(destPath, { size: true });
-        const fileSize = info.exists && 'size' in info ? (info as FileSystem.FileSystemFileInfo).size : 0;
+        const fileSize = info.exists ? info.size : 0;
         extractedFiles = [{ filename, filePath: destPath, size: fileSize }];
 
         // Copy the single video into public Downloads/ZipSender/<title>/

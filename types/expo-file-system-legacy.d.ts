@@ -5,6 +5,9 @@
  * in its package.json exports map, so TypeScript cannot resolve it.
  * The runtime module exists; this shim restores type coverage.
  *
+ * Note: FileSystemFileInfo does not exist in this version — use the
+ * discriminated union FileInfo instead: `if (info.exists) { info.size }`.
+ *
  * Remove this file once expo-file-system is upgraded to SDK 53+.
  */
 declare module 'expo-file-system/legacy' {

@@ -111,13 +111,12 @@ import * as FileSystem from 'expo-file-system/legacy'
 ```
 Never `from 'expo-file-system'` — `StorageAccessFramework` is in the legacy module and the plain import path is deprecated from SDK 55+.
 
-When calling `FileSystem.getInfoAsync(path, { size: true })`, narrow the type properly:
+When calling `FileSystem.getInfoAsync(path, { size: true })`, narrow the type using the discriminated union — `FileSystemFileInfo` does not exist in SDK 52, use `FileInfo` directly:
 ```ts
 const info = await FileSystem.getInfoAsync(path, { size: true })
-const size = info.exists && 'size' in info
-  ? (info as FileSystem.FileSystemFileInfo).size
-  : 0
+const size = info.exists ? info.size : 0
 ```
+The `exists: true` branch of `FileInfo` already includes `size: number` — no cast needed.
 
 When passing paths to `react-native-zip-archive`'s `unzip()`, strip the `file://` prefix:
 ```ts
@@ -242,6 +241,7 @@ All 20 issues from the initial audit were fixed, plus 4 TypeScript errors from `
 22. `api.drive` missing from app-level generated API — added `drive` import to `convex/_generated/api.d.ts`; fixes `AddPartSheet.tsx` + `AddSeriesSheet.tsx` (TS2339 ×2)
 23. `dp` implicit `any` in `DownloadButton.tsx` line 180 — annotated as `FileSystem.DownloadProgressData` (TS7006)
 24. `e` implicit `any` in `useSafDownloads.ts` line 136 — annotated as `string` in the `entries.find()` callback; was cascading from unresolved `SAF.readDirectoryAsync` type (fixed by shim in #21) (TS7006)
+25. `FileSystemFileInfo` does not exist in `expo-file-system` SDK 52 — replaced both casts in `DownloadButton.tsx` with clean `info.exists ? info.size : 0` using the `FileInfo` discriminated union directly (TS2694 ×2)
 
 All 20 issues from the initial audit were fixed:
 
