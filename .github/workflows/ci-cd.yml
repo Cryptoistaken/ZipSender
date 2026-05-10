@@ -24,7 +24,7 @@ on:
 # ─────────────────────────────────────────────────────────────────────────────
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  NODE_VERSION: "20"
+  NODE_VERSION: "24"
   JAVA_VERSION: "17"
   CONVEX_URL: "https://majestic-fennec-666.eu-west-1.convex.cloud"
 
@@ -45,10 +45,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm install --legacy-peer-deps
 
-      - name: TypeScript type-check
+      - name: Generate Convex types
+        working-directory: convex
+        run: npx convex codegen --once
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
+      - name: TypeScript type-check (app only)
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: TypeScript type-check (convex backend)
+        working-directory: convex
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Expo lint
