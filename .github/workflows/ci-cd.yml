@@ -83,8 +83,10 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Expo lint
-        run: npm run lint -- --max-warnings 0
-        continue-on-error: true
+        # expo lint forwards args after `--` to ESLint; --max-warnings is an ESLint flag,
+        # not an expo-lint flag, so it must be passed through the -- boundary.
+        # `npm run lint -- -- --max-warnings 0` becomes `expo lint -- --max-warnings 0`
+        run: npm run lint -- -- --max-warnings 0
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
@@ -140,7 +142,7 @@ jobs:
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@c5195efecf7bdfc987ee8b902f2fe3e47b0e52f # v4.7.1
+        uses: actions/setup-java@7a6d8a8234af8eb533c6dcb94f3c0cba2c236b36 # v4.7.1
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -251,7 +253,7 @@ jobs:
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@c5195efecf7bdfc987ee8b902f2fe3e47b0e52f # v4.7.1
+        uses: actions/setup-java@7a6d8a8234af8eb533c6dcb94f3c0cba2c236b36 # v4.7.1
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
