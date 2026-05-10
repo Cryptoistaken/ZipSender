@@ -51,8 +51,8 @@ export default function ConfirmDeleteSheet({ mode, id, label, onClose }: Props) 
         Delete {mode === 'series' ? 'title' : 'file'}?
       </Text>
       <Text style={styles.body} numberOfLines={2}>
-        "{label}" will be permanently removed
-        {mode === 'series' ? ' along with all its files' : ''}.
+        "{label}" will be hidden from the catalog
+        {mode === 'series' ? ' (and all its files removed)' : ''}.
       </Text>
 
       <View style={styles.actionRow}>

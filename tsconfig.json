@@ -16,7 +16,7 @@
   ],
   "exclude": [
     "node_modules",
-    "convex",
-    "convex/convex"
+    "convex/node_modules",
+    "convex/convex/_generated"
   ]
 }

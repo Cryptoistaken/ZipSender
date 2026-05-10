@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useMutation, useAction } from 'convex/react';
-import { anyApi } from 'convex/server';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Colors } from '../../constants/colors';
@@ -34,8 +33,8 @@ interface Props {
 function extractFilename(url: string): string {
   const idMatch = url.match(DRIVE_ID_RE);
   if (idMatch) return `drive_${idMatch[1].slice(0, 8)}.file`;
-  const parts = url.split('/');
-  return parts[parts.length - 1] || 'file';
+  const segments = url.split('/');
+  return segments[segments.length - 1] || 'file';
 }
 
 export default function AddSeriesSheet({ onClose }: Props) {
@@ -48,7 +47,7 @@ export default function AddSeriesSheet({ onClose }: Props) {
 
   const createTitle = useMutation(api.titles.create);
   const addPart = useMutation(api.parts.add);
-  const getFileMeta = useAction(anyApi.drive.getFileMeta);
+  const getFileMeta = useAction(api.drive.getFileMeta);
 
   const fetchMeta = async (rowId: string, url: string) => {
     if (!url.trim() || !DRIVE_ID_RE.test(url)) return;
@@ -98,8 +97,7 @@ export default function AddSeriesSheet({ onClose }: Props) {
     try {
       const titleId = await createTitle({ name: name.trim(), type });
       for (const row of filledRows) {
-        const driveFileId =
-          row.url.match(DRIVE_ID_RE)?.[1] ?? row.url;
+        const driveFileId = row.url.match(DRIVE_ID_RE)?.[1] ?? row.url;
         const filename = row.resolvedName || extractFilename(row.url);
         await addPart({
           titleId,

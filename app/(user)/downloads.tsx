@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import StorageWidget from '../../components/StorageWidget';
 import { useDownloadsStore, DownloadedItem, ExtractedFile } from '../../store/downloads';
@@ -30,27 +30,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// Opens the system file manager pointed at the ZipSender Downloads folder
-async function openFolder(folderPath: string) {
+// Opens the system file manager — tries the system Downloads app first,
+// then falls back to the generic Files app. Since our files live in
+// documentDirectory (app-private), not public Downloads, we can only
+// open the nearest system browser and let the user navigate.
+async function openFolder(_folderPath: string) {
   try {
     if (Platform.OS === 'android') {
-      // Best approach: open the system Downloads app directly
-      // android.provider.Downloads.ACTION_VIEW_DOWNLOADS navigates to Downloads
-      try {
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW_DOWNLOADS');
-        return;
-      } catch {}
-
-      // Fallback 1: open via content URI for the Downloads folder
-      try {
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: 'content://com.android.externalstorage.documents/root/primary',
-          flags: 1,
-        });
-        return;
-      } catch {}
-
-      // Fallback 2: open the system Files app
+      // Try the system Files app (CATEGORY_APP_FILES is the correct category)
       try {
         await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
           category: 'android.intent.category.APP_FILES',
@@ -58,12 +45,19 @@ async function openFolder(folderPath: string) {
         return;
       } catch {}
 
-      // Fallback 3: open via Linking with a content URI
+      // Fallback: open content://downloads/public_downloads
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: 'content://downloads/public_downloads',
+          flags: 1,
+        });
+        return;
+      } catch {}
+
+      // Last resort: open the Settings > Storage screen
       try {
         await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
       } catch {}
-    } else {
-      await Linking.openURL(folderPath);
     }
   } catch {}
 }

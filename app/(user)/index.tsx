@@ -19,8 +19,7 @@ function HeroStrip() {
   const player = useVideoPlayer(HERO_VIDEO_URL, (p) => {
     p.loop = true;
     p.muted = true;
-    // Load the first frame but keep it paused — acts as a static poster
-    p.pause();
+    p.play();
   });
 
   return (
@@ -110,8 +109,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 0,
   },
-
-  // .hero-strip — 168px, overflow hidden, margin -16px horizontal to bleed full width
   heroStrip: {
     height: 168,
     overflow: 'hidden',
@@ -119,7 +116,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     position: 'relative',
   },
-  // SafeAreaView fills the strip so text sits at the bottom
+  // SafeAreaView fills the strip — edges top ensures text stays below status bar
   heroSafeArea: {
     flex: 1,
     justifyContent: 'flex-end',

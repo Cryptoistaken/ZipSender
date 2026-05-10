@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Id } from '../convex/_generated/dataModel';
 
 export interface ExtractedFile {
   filename: string;   // e.g. "True Beauty S01E01 720p.mkv"
@@ -9,7 +10,7 @@ export interface ExtractedFile {
 }
 
 export interface DownloadedItem {
-  id: string;
+  id: Id<'parts'>;
   titleName: string;
   filename: string;       // original downloaded filename
   folderPath: string;     // absolute folder URI, e.g. .../Downloads/ZipSender/True Beauty season 01/
@@ -17,13 +18,14 @@ export interface DownloadedItem {
   format: 'zip' | 'video';
   downloadedAt: number;
   // populated after extraction (for zips) or immediately (for single videos)
-  extractedFiles: ExtractedFile[];
+  // optional to gracefully handle persisted data that pre-dates this field
+  extractedFiles?: ExtractedFile[];
 }
 
 interface DownloadsState {
   items: DownloadedItem[];
   add: (item: DownloadedItem) => void;
-  remove: (id: string) => void;
+  remove: (id: Id<'parts'>) => void;
   clear: () => void;
 }
 

@@ -49,9 +49,16 @@ export default function AdminScreen() {
     bottomSheetRef.current?.expand();
   }, []);
 
+  // Only reset state here — sheet closure itself is handled by enablePanDownToClose
+  // or by the imperative .close() call from outside. Calling .close() inside onClose
+  // would double-close the already-closing sheet.
   const closeSheet = useCallback(() => {
     bottomSheetRef.current?.close();
     setTimeout(() => setSheet({ type: 'none' }), 300);
+  }, []);
+
+  const handleSheetClose = useCallback(() => {
+    setSheet({ type: 'none' });
   }, []);
 
   const renderSheet = () => {
@@ -203,7 +210,7 @@ export default function AdminScreen() {
           index={-1}
           snapPoints={['70%', '92%']}
           enablePanDownToClose
-          onClose={closeSheet}
+          onClose={handleSheetClose}
           backgroundStyle={styles.sheetBg}
           handleIndicatorStyle={styles.sheetHandle}
         >

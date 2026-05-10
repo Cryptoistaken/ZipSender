@@ -17,7 +17,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 const { StorageAccessFramework: SAF } = FileSystem;
@@ -122,25 +122,29 @@ export async function copyToPublicDownloads(
     // Create ZipSender sub-directory inside the granted Downloads folder.
     // SAF makeDirectoryAsync is safe to call even if the dir already exists
     // (it returns the existing URI).  We nest: Downloads/ZipSender/<subDir>/
-    let zipSenderDirUri: string;
-    try {
-      zipSenderDirUri = await SAF.makeDirectoryAsync(dirUri, 'ZipSender');
-    } catch {
-      // Directory likely already exists — reconstruct its URI.
-      // SAF doesn't expose a "getOrCreate" API, so we list and find it.
-      const entries = await SAF.readDirectoryAsync(dirUri).catch(() => []);
-      const found = entries.find((e) => e.includes('ZipSender'));
-      zipSenderDirUri = found ?? dirUri;
-    }
+    // SAF makeDirectoryAsync throws if directory already exists.
+    // We use a helper that retries with a list-and-match fallback,
+    // matching on the last URI segment (after the final %3A or /) to
+    // handle percent-encoded names correctly.
+    const safGetOrCreateDir = async (parentUri: string, name: string): Promise<string> => {
+      try {
+        return await SAF.makeDirectoryAsync(parentUri, name);
+      } catch {
+        const entries = await SAF.readDirectoryAsync(parentUri).catch(() => [] as string[]);
+        // SAF URIs end with the encoded folder name after %3A or the last /
+        const encodedName = encodeURIComponent(name);
+        const found = entries.find((e) => {
+          const tail = e.split('%3A').pop() ?? e.split('/').pop() ?? '';
+          return decodeURIComponent(tail) === name || tail === encodedName;
+        });
+        if (found) return found;
+        // Last resort: return parent so files don't get lost silently
+        return parentUri;
+      }
+    };
 
-    let titleDirUri: string;
-    try {
-      titleDirUri = await SAF.makeDirectoryAsync(zipSenderDirUri, subDir);
-    } catch {
-      const entries = await SAF.readDirectoryAsync(zipSenderDirUri).catch(() => []);
-      const found = entries.find((e) => e.includes(encodeURIComponent(subDir)) || e.includes(subDir));
-      titleDirUri = found ?? zipSenderDirUri;
-    }
+    const zipSenderDirUri = await safGetOrCreateDir(dirUri, 'ZipSender');
+    const titleDirUri = await safGetOrCreateDir(zipSenderDirUri, subDir);
 
     // Create the file and write base64 content
     const mime = mimeForExt(filename);

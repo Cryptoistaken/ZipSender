@@ -84,7 +84,7 @@ export const update = mutation({
   handler: async (ctx, { partId, ...patch }) => {
     // Strip undefined fields so we don't accidentally null them out
     const clean = Object.fromEntries(
-      Object.entries(patch).filter(([, v]) => v !== undefined),
+      Object.entries(patch).filter(([, val]) => val !== undefined),
     );
     await ctx.db.patch(partId, clean);
   },

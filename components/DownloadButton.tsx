@@ -9,7 +9,7 @@ import {
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { unzip } from 'react-native-zip-archive';
 import { Doc } from '../convex/_generated/dataModel';
 import { useDownloadsStore, ExtractedFile } from '../store/downloads';
@@ -72,7 +72,8 @@ async function scanVideoFiles(dir: string): Promise<ExtractedFile[]> {
       if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
         const filePath = dir + entry;
         const info = await FileSystem.getInfoAsync(filePath, { size: true });
-        results.push({ filename: entry, filePath, size: (info as any).size ?? 0 });
+        const size = info.exists && 'size' in info ? (info as FileSystem.FileSystemFileInfo).size : 0;
+        results.push({ filename: entry, filePath, size });
       }
     }
     return results.sort((a, b) => a.filename.localeCompare(b.filename));
@@ -211,7 +212,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         setState('extracting');
         const extractDir = folder + 'extracted/';
         await FileSystem.makeDirectoryAsync(extractDir, { intermediates: true });
-        await unzip(result.uri, extractDir);
+        await unzip(result.uri.replace(/^file:\/\//, ''), extractDir);
         await FileSystem.deleteAsync(result.uri, { idempotent: true });
         extractedFiles = await scanVideoFiles(extractDir);
 
@@ -221,7 +222,8 @@ export default function DownloadButton({ part, titleName }: Props) {
         }
       } else {
         const info = await FileSystem.getInfoAsync(destPath, { size: true });
-        extractedFiles = [{ filename, filePath: destPath, size: (info as any).size ?? 0 }];
+        const fileSize = info.exists && 'size' in info ? (info as FileSystem.FileSystemFileInfo).size : 0;
+        extractedFiles = [{ filename, filePath: destPath, size: fileSize }];
 
         // Copy the single video into public Downloads/ZipSender/<title>/
         await copyToPublicDownloads(destPath, filename, sanitizeName(titleName));

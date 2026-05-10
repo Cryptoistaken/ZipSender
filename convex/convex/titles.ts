@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { titleTypeValidator } from "./schema";
 
@@ -113,7 +113,7 @@ export const archive = mutation({
  * Internal helper: recalculate and persist partCount + totalSize on a title.
  * Called by parts mutations after any insert/delete.
  */
-export const _recalcStats = mutation({
+export const _recalcStats = internalMutation({
   args: { titleId: v.id("titles") },
   handler: async (ctx, { titleId }) => {
     const parts = await ctx.db
