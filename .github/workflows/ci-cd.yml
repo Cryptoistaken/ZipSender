@@ -82,13 +82,19 @@ jobs:
         working-directory: convex
         run: npx tsc --noEmit --skipLibCheck
 
-      - name: Expo lint
-        # Use `npx expo lint -- --max-warnings 0` to forward --max-warnings through
-        # expo lint's `--` boundary to the underlying local ESLint binary.
-        # Do NOT use `npx eslint` directly — it re-downloads ESLint latest (v10+)
-        # which requires flat config (eslint.config.js) and removes --ext support,
-        # both incompatible with this project's existing .eslintrc setup.
-        run: npx expo lint -- --max-warnings 0
+      - name: Lint
+        # Root cause analysis:
+        # 1. `expo lint -- --max-warnings 0` fails: SDK 52 expo lint does NOT support
+        #    flag forwarding via `--`. The --max-warnings flag is rejected as unknown.
+        # 2. `npx eslint` downloads latest ESLint (v10+) which requires flat config
+        #    (eslint.config.js) and drops --ext — breaks this project's .eslintrc setup.
+        # Fix: invoke the LOCAL ESLint binary from node_modules directly.
+        # This respects the pinned ESLint version and the existing legacy .eslintrc config.
+        run: >-
+          ./node_modules/.bin/eslint
+          --ext .js,.jsx,.ts,.tsx
+          --max-warnings 0
+          .
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
   test:
