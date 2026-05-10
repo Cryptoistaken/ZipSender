@@ -2,6 +2,7 @@ import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from 'convex/react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Doc } from '../../convex/_generated/dataModel';
@@ -9,29 +10,46 @@ import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 import TitleCard from '../../components/TitleCard';
 
-// Hero background — dark cinematic gradient instead of video to avoid
-// requiring a CloudFront URL that may be unavailable
+// Exact URL from prototype/app.html hero-strip <video src="...">
+const HERO_VIDEO_URL =
+  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4';
+
+// Hero strip — autoplay looping muted video, matches prototype .hero-strip
 function HeroStrip() {
+  const player = useVideoPlayer(HERO_VIDEO_URL, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+
   return (
     <View style={styles.heroStrip}>
-      {/* Cinematic gradient background */}
-      <LinearGradient
-        colors={['#1a1a18', '#0d0d0c', '#101010']}
+      {/* Video — object-fit: cover, fills the strip */}
+      <VideoView
+        player={player}
         style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+        contentFit="cover"
+        nativeControls={false}
       />
-      {/* Soft glow top-center */}
-      <View style={styles.heroGlow} />
-      {/* Text overlay — bottom-left, matches prototype .hero-strip-text */}
+
+      {/* Gradient overlay — matches .hero-strip-overlay:
+          linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.1) 40%, #000 100%) */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.1)', '#000']}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+
+      {/* Text overlay — bottom-left, matches .hero-strip-text */}
       <SafeAreaView style={styles.heroSafeArea} edges={['top']}>
         <View style={styles.heroText}>
           {/* .hero-label — 8px 700 0.18em uppercase cream50 */}
           <Text style={styles.heroLabel}>ZipSender</Text>
           {/* .hero-title — 26px 800 -0.05em line-height 1 */}
           <Text style={styles.heroTitle}>
-            Your{' '}
-            <Text style={styles.heroTitleItalic}>videos</Text>
+            Your <Text style={styles.heroTitleItalic}>videos</Text>
           </Text>
         </View>
       </SafeAreaView>
@@ -92,7 +110,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
 
-  // .hero-strip — 168px, overflow hidden, margin -16px horizontal to bleed
+  // .hero-strip — 168px, overflow hidden, margin -16px horizontal to bleed full width
   heroStrip: {
     height: 168,
     overflow: 'hidden',
@@ -100,16 +118,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     position: 'relative',
   },
-  heroGlow: {
-    position: 'absolute',
-    top: 0,
-    left: '10%',
-    right: '10%',
-    height: 80,
-    borderRadius: 999,
-    backgroundColor: 'rgba(225,224,204,0.05)',
-  },
-  // SafeAreaView fills the strip, text sits at bottom
+  // SafeAreaView fills the strip so text sits at the bottom
   heroSafeArea: {
     flex: 1,
     justifyContent: 'flex-end',

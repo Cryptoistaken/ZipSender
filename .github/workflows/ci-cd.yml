@@ -49,10 +49,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -116,10 +116,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -135,7 +135,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: unit-test-results-${{ github.run_number }}
           path: reports/unit-tests.xml
@@ -152,16 +152,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.0
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -218,7 +218,7 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
       - name: Cache Gradle
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -242,37 +242,34 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: zipsender-debug-${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
           if-no-files-found: error
 
-  # ── 4. Release APK build (signed) ────────────────────────────────────────
+  # ── 4. Release APK build (auto-signed) ───────────────────────────────────
   build-release:
-    name: Build Release APK (Signed)
+    name: Build Release APK
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     needs: test
     permissions:
-      contents: write # required for softprops/action-gh-release to create releases
-    if: |
-      startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.release == 'true'
+      contents: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.0
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -310,10 +307,60 @@ jobs:
           make_dark_png('assets/favicon.png', 64, 64)
           PYEOF
 
+      - name: Generate keystore (auto)
+        # Creates a fresh self-signed keystore every run — fine for family/internal use
+        run: |
+          keytool -genkeypair \
+            -keystore android/app/release.jks \
+            -alias zipsender \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass zipsender123 \
+            -keypass zipsender123 \
+            -dname "CN=ZipSender, OU=Family, O=ZipSender, L=Unknown, ST=Unknown, C=US" \
+            -noprompt
+
       - name: Expo prebuild (Android)
         run: npx expo prebuild --platform android --clean --no-install
         env:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      - name: Inject signing config into build.gradle
+        # Expo-generated build.gradle has no signing config for release — patch it in.
+        run: |
+          python3 - <<'PYEOF'
+          import re
+
+          path = 'android/app/build.gradle'
+          text = open(path).read()
+
+          signing_configs = """
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "release.jks")
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+          """
+
+          # Insert signingConfigs block before buildTypes if not already present
+          if 'signingConfigs' not in text:
+              text = text.replace('    buildTypes {', signing_configs + '    buildTypes {', 1)
+
+          # Wire signingConfig into release buildType
+          text = re.sub(
+              r'(release\s*\{)',
+              r'\1\n            signingConfig signingConfigs.release',
+              text,
+              count=1
+          )
+
+          open(path, 'w').write(text)
+          print("build.gradle patched with signing config.")
+          PYEOF
 
       - name: Bundle JavaScript
         run: |
@@ -328,19 +375,8 @@ jobs:
           NODE_ENV: production
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
-      - name: Decode keystore
-        run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
-            echo "Keystore decoded."
-          else
-            echo "ANDROID_KEYSTORE_BASE64 not set — skipping keystore decode."
-          fi
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-
       - name: Cache Gradle
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -363,12 +399,12 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
           ANDROID_KEYSTORE_PATH: release.jks
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: zipsender
+          ANDROID_KEYSTORE_PASSWORD: zipsender123
+          ANDROID_KEY_PASSWORD: zipsender123
 
       - name: Upload release APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: zipsender-release-${{ github.run_number }}
           path: android/app/build/outputs/apk/release/app-release.apk
@@ -377,7 +413,7 @@ jobs:
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267f # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
           name: "ZipSender ${{ github.ref_name }}"
