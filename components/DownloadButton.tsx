@@ -25,6 +25,7 @@ interface Props {
 }
 
 const DRIVE_ID_RE = /(?:\/d\/|[?&]id=)([a-zA-Z0-9_-]{25,})/;
+const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v'];
 
 function parseDriveId(raw: string): string {
   if (!raw.includes('/') && !raw.includes('?')) return raw;
@@ -34,8 +35,6 @@ function parseDriveId(raw: string): string {
 function buildDriveUrl(fileId: string): string {
   return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
 }
-
-const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v'];
 
 function sanitizeName(name: string): string {
   return name.replace(/[/\\:*?"<>|]/g, '_').trim();
@@ -89,37 +88,39 @@ async function saveToMediaLibrary(filePaths: string[]): Promise<void> {
   } catch { /* permission denied */ }
 }
 
+// ── Animated extracting dots ─────────────────────────────────────────────────
 function AnimatedDots() {
-  const dot1 = useRef(new Animated.Value(0.3)).current;
-  const dot2 = useRef(new Animated.Value(0.3)).current;
-  const dot3 = useRef(new Animated.Value(0.3)).current;
+  const dots = [
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+  ];
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(dot1, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(dot2, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(dot3, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.parallel([
-          Animated.timing(dot1, { toValue: 0.3, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot2, { toValue: 0.3, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot3, { toValue: 0.3, duration: 300, useNativeDriver: true }),
-        ]),
+        Animated.timing(dots[0], { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(dots[1], { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(dots[2], { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.parallel(
+          dots.map((d) => Animated.timing(d, { toValue: 0.3, duration: 300, useNativeDriver: true }))
+        ),
       ])
     );
     anim.start();
     return () => anim.stop();
-  }, [dot1, dot2, dot3]);
+  }, []);
 
   return (
     <View style={styles.dotsRow}>
-      {[dot1, dot2, dot3].map((anim, i) => (
+      {dots.map((anim, i) => (
         <Animated.View key={i} style={[styles.dot, { opacity: anim }]} />
       ))}
     </View>
   );
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
 export default function DownloadButton({ part, titleName }: Props) {
   const items = useDownloadsStore((s) => s.items);
   const addDownload = useDownloadsStore((s) => s.add);
@@ -131,12 +132,14 @@ export default function DownloadButton({ part, titleName }: Props) {
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
 
+  // Sync with store changes
   useEffect(() => {
     const downloaded = items.some((i) => i.id === part._id);
     if (!downloaded && state === 'done') setState('idle');
     if (downloaded && state === 'idle') setState('done');
   }, [items, part._id]);
 
+  // Shimmer animation when downloading
   useEffect(() => {
     if (state === 'downloading') {
       Animated.loop(
@@ -146,7 +149,7 @@ export default function DownloadButton({ part, titleName }: Props) {
       shimmerAnim.stopAnimation();
       shimmerAnim.setValue(0);
     }
-  }, [state, shimmerAnim]);
+  }, [state]);
 
   const startDownload = useCallback(async () => {
     if (state !== 'idle' && state !== 'error') return;
@@ -186,20 +189,23 @@ export default function DownloadButton({ part, titleName }: Props) {
       setProgress(100);
 
       let actualFormat = part.format;
+
+      // Detect format from Content-Type without needing an API key
       try {
-        const metaRes = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name&key=${process.env.EXPO_PUBLIC_GOOGLE_API_KEY}`
-        );
-        if (metaRes.ok) {
-          const meta = await metaRes.json();
-          const mime: string = meta.mimeType ?? '';
-          const isZip =
-            mime === 'application/zip' ||
-            mime === 'application/x-zip-compressed' ||
-            (meta.name as string)?.toLowerCase().endsWith('.zip');
-          actualFormat = isZip ? 'zip' : 'video';
-        }
+        const headRes = await fetch(downloadUrl, {
+          method: 'HEAD',
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          redirect: 'follow',
+        });
+        const mime = headRes.headers.get('content-type') ?? '';
+        if (mime.includes('zip')) actualFormat = 'zip';
+        else if (mime.startsWith('video/')) actualFormat = 'video';
       } catch { /* fall back to stored format */ }
+
+      // Also check by filename extension
+      const fl = filename.toLowerCase();
+      if (fl.endsWith('.zip')) actualFormat = 'zip';
+      else if (VIDEO_EXTENSIONS.some((e) => fl.endsWith(e))) actualFormat = 'video';
 
       let extractedFiles: ExtractedFile[] = [];
 
@@ -236,7 +242,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         return;
       }
       const msg = err?.message ?? 'Download failed';
-      setErrorMsg(msg.slice(0, 60));
+      setErrorMsg(msg.slice(0, 50));
       setState('error');
     }
   }, [state, part, titleName, addDownload]);
@@ -249,7 +255,11 @@ export default function DownloadButton({ part, titleName }: Props) {
   }, []);
 
   const shimmerTranslate = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-200, 200] });
+  const displayLabel = part.label && part.label !== 'file' && !part.label.startsWith('drive_')
+    ? part.label
+    : buildFilename(part);
 
+  // ── State: idle / error ───────────────────────────────────────────────────
   if (state === 'idle' || state === 'error') {
     return (
       <TouchableOpacity
@@ -258,75 +268,304 @@ export default function DownloadButton({ part, titleName }: Props) {
         activeOpacity={0.85}
       >
         <Text style={[styles.idleLabel, state === 'error' && styles.errorLabel]} numberOfLines={1}>
-          {state === 'error' ? `Retry · ${errorMsg.slice(0, 28)}` : part.label || buildFilename(part)}
+          {state === 'error' ? `Retry — ${errorMsg}` : displayLabel}
         </Text>
-        <View style={[styles.idleIcon, state === 'error' && styles.errorIcon]}>
-          <MaterialCommunityIcons name={state === 'error' ? 'refresh' : 'arrow-down'} size={14} color={Colors.surface} />
+        {/* Black circle with arrow — matches .btn-dl-circle */}
+        <View style={[styles.idleCircle, state === 'error' && styles.errorCircle]}>
+          <MaterialCommunityIcons
+            name={state === 'error' ? 'refresh' : 'arrow-down'}
+            size={14}
+            color={state === 'error' ? Colors.cream50 : Colors.surface}
+          />
         </View>
       </TouchableOpacity>
     );
   }
 
+  // ── State: downloading ────────────────────────────────────────────────────
   if (state === 'downloading') {
     return (
       <View style={styles.progressPill}>
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <View style={[StyleSheet.absoluteFill, { width: `${progress}%` as any, backgroundColor: Colors.cream20 }]} />
+        {/* Progress track fill */}
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: 999, overflow: 'hidden' },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={{ width: `${progress}%`, height: '100%', backgroundColor: Colors.cream20 }} />
+          {/* Shimmer overlay */}
           <Animated.View style={[styles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}>
-            <LinearGradient colors={['transparent', Colors.cream30, 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+            <LinearGradient
+              colors={['transparent', Colors.cream30, 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
           </Animated.View>
         </View>
-        <View style={styles.progressInner}>
-          <Text style={styles.progressPct}>{progress}%</Text>
-          <Text style={styles.progressFilename} numberOfLines={1}>{buildFilename(part)}</Text>
+
+        {/* Left: spinner icon */}
+        <View style={styles.progressLeft}>
+          <MaterialCommunityIcons name="cloud-download-outline" size={13} color={Colors.cream50} />
         </View>
-        <TouchableOpacity onPress={cancelDownload} style={styles.cancelBtn}>
-          <MaterialCommunityIcons name="close" size={14} color={Colors.cream50} />
+
+        {/* Middle: pct + filename */}
+        <View style={styles.progressMid}>
+          <Text style={styles.progressPct}>{progress}%</Text>
+          <Text style={styles.progressFilename} numberOfLines={1}>{displayLabel}</Text>
+        </View>
+
+        {/* Right: cancel circle */}
+        <TouchableOpacity onPress={cancelDownload} style={styles.cancelCircle} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="close" size={12} color={Colors.cream50} />
         </TouchableOpacity>
       </View>
     );
   }
 
+  // ── State: extracting ─────────────────────────────────────────────────────
   if (state === 'extracting') {
     return (
       <View style={styles.extractingPill}>
-        <MaterialCommunityIcons name="archive-arrow-down-outline" size={16} color={Colors.cream50} />
+        {/* Left: spinning archive icon */}
+        <Animated.View>
+          <MaterialCommunityIcons name="archive-arrow-down-outline" size={15} color={Colors.cream50} />
+        </Animated.View>
         <Text style={styles.extractingLabel}>Extracting…</Text>
         <AnimatedDots />
+        {/* Right: static icon box */}
+        <View style={styles.extractingIconBox}>
+          <MaterialCommunityIcons name="archive-outline" size={15} color={Colors.cream50} />
+        </View>
       </View>
     );
   }
 
+  // ── State: done ───────────────────────────────────────────────────────────
   return (
     <View style={styles.donePill}>
-      <MaterialCommunityIcons name="check-circle" size={16} color={Colors.cream} />
-      <Text style={styles.doneLabel}>Downloaded</Text>
-      <TouchableOpacity style={styles.viewBtn} onPress={() => router.push('/(user)/downloads')} activeOpacity={0.8}>
-        <Text style={styles.viewBtnText}>View →</Text>
+      {/* Check circle */}
+      <View style={styles.doneCheck}>
+        <MaterialCommunityIcons name="check-circle" size={16} color={Colors.cream} />
+      </View>
+      {/* Label + filename */}
+      <View style={styles.doneBody}>
+        <Text style={styles.doneTitle}>Downloaded</Text>
+        <Text style={styles.doneFile} numberOfLines={1}>{displayLabel}</Text>
+      </View>
+      {/* View button */}
+      <TouchableOpacity
+        style={styles.viewBtn}
+        onPress={() => router.push('/(user)/downloads')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.viewBtnText}>View</Text>
+        <MaterialCommunityIcons name="arrow-top-right" size={9} color={Colors.surface} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  idlePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.cream, borderRadius: 999, paddingLeft: 20, paddingRight: 9, paddingVertical: 9, minHeight: 48, shadowColor: Colors.cream, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4 },
-  errorPill: { backgroundColor: Colors.card2, borderWidth: 1, borderColor: Colors.cream20, shadowOpacity: 0, elevation: 0 },
-  idleLabel: { fontFamily: Fonts.extraBold, fontSize: 12, color: Colors.black, flex: 1, letterSpacing: -0.1 },
-  idleIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.black, alignItems: 'center', justifyContent: 'center' },
-  errorIcon: { backgroundColor: Colors.cream30 },
+  // ── idle / error pill — matches .btn-dl ──────────────────────────────────
+  idlePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.cream,
+    borderRadius: 999,
+    paddingLeft: 20,
+    paddingRight: 9,
+    paddingVertical: 9,
+    minHeight: 48,
+    shadowColor: Colors.cream,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  errorPill: {
+    backgroundColor: Colors.card2,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  idleLabel: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 12,
+    color: Colors.black,
+    flex: 1,
+    letterSpacing: -0.01 * 12,
+    marginRight: 8,
+  },
   errorLabel: { color: Colors.cream50 },
-  progressPill: { borderRadius: 999, backgroundColor: Colors.card2, borderWidth: 1, borderColor: Colors.cream20, overflow: 'hidden', height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 8 },
-  shimmer: { position: 'absolute', top: 0, bottom: 0, width: 80 },
-  progressInner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  progressPct: { fontFamily: Fonts.bold, fontSize: 12, color: Colors.cream, minWidth: 34 },
-  progressFilename: { fontFamily: Fonts.regular, fontSize: 11, color: Colors.cream50, flex: 1 },
-  cancelBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.cream10, alignItems: 'center', justifyContent: 'center' },
-  extractingPill: { height: 48, borderRadius: 999, backgroundColor: Colors.card2, borderWidth: 1, borderColor: Colors.cream20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 10 },
-  extractingLabel: { fontFamily: Fonts.bold, fontSize: 12, color: Colors.cream80, flex: 1 },
-  dotsRow: { flexDirection: 'row', gap: 4, alignItems: 'center' },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.cream30 },
-  donePill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 999, backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20, paddingHorizontal: 14, paddingVertical: 8, height: 48 },
-  doneLabel: { fontFamily: Fonts.bold, fontSize: 12, color: Colors.cream, flex: 1 },
-  viewBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: Colors.cream20 },
-  viewBtnText: { fontFamily: Fonts.bold, fontSize: 11, color: Colors.cream },
+  // .btn-dl-circle — matches prototype: black circle, right side
+  idleCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorCircle: { backgroundColor: Colors.cream20 },
+
+  // ── progress pill — matches .dl-progress-pill ────────────────────────────
+  progressPill: {
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: Colors.card2,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 80,
+  },
+  progressLeft: {
+    width: 24,
+    alignItems: 'center',
+  },
+  progressMid: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressPct: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 11,
+    color: Colors.cream,
+    letterSpacing: -0.02 * 11,
+    minWidth: 30,
+  },
+  progressFilename: {
+    fontFamily: Fonts.light,
+    fontSize: 9,
+    color: Colors.cream30,
+    letterSpacing: 0.03 * 9,
+    flex: 1,
+  },
+  // cancel circle button — matches .btn-dl-cancel
+  cancelCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── extracting pill — matches .extracting-wrap ───────────────────────────
+  extractingPill: {
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: '#1c1c1c',
+    borderWidth: 1,
+    borderColor: '#2e2e2e',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  extractingLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: Colors.cream80,
+    flex: 1,
+  },
+  extractingIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.cream50,
+  },
+
+  // ── done pill — matches .done-pill ───────────────────────────────────────
+  donePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    borderRadius: 999,
+    padding: 9,
+    paddingLeft: 12,
+    minHeight: 48,
+  },
+  // .done-pill-check: 34×34 circle
+  doneCheck: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.cream20,
+    borderWidth: 1,
+    borderColor: Colors.cream30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  doneBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  doneTitle: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 12,
+    color: Colors.cream,
+    letterSpacing: -0.02 * 12,
+    lineHeight: 14,
+  },
+  doneFile: {
+    fontFamily: Fonts.light,
+    fontSize: 9,
+    color: Colors.cream30,
+    letterSpacing: 0.02 * 9,
+  },
+  // .done-pill-view: cream pill button
+  viewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.cream,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    flexShrink: 0,
+  },
+  viewBtnText: {
+    fontFamily: Fonts.extraBold,
+    fontSize: 10,
+    color: Colors.surface,
+    letterSpacing: 0.02 * 10,
+  },
 });

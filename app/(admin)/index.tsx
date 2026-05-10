@@ -246,9 +246,9 @@ const styles = StyleSheet.create({
   adminTitleBlock: { flex: 1 },
   adminTitle: {
     fontFamily: Fonts.extraBold,
-    fontSize: 20,
+    fontSize: 22,
     color: Colors.cream,
-    letterSpacing: -0.05 * 20,
+    letterSpacing: -0.05 * 22,
   },
   adminSub: {
     fontFamily: Fonts.light,
