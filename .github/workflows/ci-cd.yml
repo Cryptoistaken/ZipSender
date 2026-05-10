@@ -61,17 +61,9 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Install ESLint
-        # eslint is NOT in the project's devDependencies — expo lint normally downloads
-        # it on demand via npx. We install eslint@8 explicitly (last version supporting
-        # .eslintrc legacy config, --ext, and --max-warnings) so we can call the binary
-        # directly with full flag control. eslint-config-expo provides the 'expo' preset.
         run: npm install --no-save --legacy-peer-deps eslint@8 eslint-config-expo
 
       - name: Create ESLint config
-        # The project has no .eslintrc file — expo lint would normally bootstrap one
-        # interactively. We create a minimal legacy config here for CI.
-        # Scripts/ is excluded because it has its own package.json (ESLint would stop
-        # its upward config search there and fail with "no config found").
         run: |
           cat > .eslintrc.js << 'ESLINT'
           module.exports = {
@@ -91,8 +83,6 @@ jobs:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
       - name: Copy _generated to app-expected path
-        # App imports from <root>/convex/_generated/ but codegen writes to
-        # <root>/convex/convex/_generated/ — bridge the gap for tsc.
         run: cp -r convex/convex/_generated convex/_generated
 
       - name: TypeScript type-check (app)
@@ -103,8 +93,6 @@ jobs:
         run: npx tsc --noEmit --skipLibCheck
 
       - name: Lint
-        # Calls the locally installed eslint@8 binary directly.
-        # Targets only the app source dirs; Scripts/ and convex/ are already in ignorePatterns.
         run: ./node_modules/.bin/eslint --ext .js,.jsx,.ts,.tsx --max-warnings 0 app components hooks store constants
 
   # ── 2. Unit tests ─────────────────────────────────────────────────────────
@@ -307,8 +295,14 @@ jobs:
           make_dark_png('assets/favicon.png', 64, 64)
           PYEOF
 
-      - name: Generate keystore (auto)
-        # Creates a fresh self-signed keystore every run — fine for family/internal use
+      - name: Expo prebuild (Android)
+        # Must run BEFORE keytool so android/app/ directory exists
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      - name: Generate keystore (auto — new each run, fine for internal use)
+        # android/app/ now exists after prebuild above
         run: |
           keytool -genkeypair \
             -keystore android/app/release.jks \
@@ -321,13 +315,7 @@ jobs:
             -dname "CN=ZipSender, OU=Family, O=ZipSender, L=Unknown, ST=Unknown, C=US" \
             -noprompt
 
-      - name: Expo prebuild (Android)
-        run: npx expo prebuild --platform android --clean --no-install
-        env:
-          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
-
       - name: Inject signing config into build.gradle
-        # Expo-generated build.gradle has no signing config for release — patch it in.
         run: |
           python3 - <<'PYEOF'
           import re
@@ -346,11 +334,9 @@ jobs:
               }
           """
 
-          # Insert signingConfigs block before buildTypes if not already present
           if 'signingConfigs' not in text:
               text = text.replace('    buildTypes {', signing_configs + '    buildTypes {', 1)
 
-          # Wire signingConfig into release buildType
           text = re.sub(
               r'(release\s*\{)',
               r'\1\n            signingConfig signingConfigs.release',
