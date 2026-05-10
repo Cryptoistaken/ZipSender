@@ -40,16 +40,19 @@ function formatBytes(bytes: number): string {
 async function openFolder(folderPath: string) {
   try {
     if (Platform.OS === 'android') {
-      const contentUri = await FileSystem.getContentUriAsync(folderPath);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1,
-        type: 'resource/folder',
-      });
+      // Open system Downloads / Files app — the folder intent doesn't work on most ROMs.
+      // Instead launch the system file manager at its root; user can navigate from there.
+      await IntentLauncher.startActivityAsync(
+        'android.intent.action.VIEW',
+        { data: 'content://com.android.externalstorage.documents/root/primary', type: '*/*', flags: 1 }
+      );
     } else {
       await Linking.openURL(folderPath);
     }
-  } catch (_) {}
+  } catch {
+    // Fallback: open generic file manager
+    try { await IntentLauncher.startActivityAsync('android.intent.action.MAIN', { category: 'android.intent.category.APP_FILES' }); } catch (_) {}
+  }
 }
 
 async function playFile(filePath: string) {
@@ -64,7 +67,10 @@ async function playFile(filePath: string) {
     } else {
       await Linking.openURL(filePath);
     }
-  } catch (_) {}
+  } catch (e) {
+    // Fallback: try Linking directly
+    try { await Linking.openURL(filePath); } catch (_) {}
+  }
 }
 
 // ── Extracted file row ───────────────────────────────────────────────────────
@@ -288,12 +294,16 @@ export default function DownloadsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
+  // matches prototype .page-header
   header: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 14, flexShrink: 0 },
+  // matches prototype .page-title
   pageTitle: { fontFamily: Fonts.extraBold, fontSize: 22, color: Colors.cream, letterSpacing: -0.05 * 22, marginBottom: 2 },
+  // matches prototype .page-sub
   pageSub: { fontFamily: Fonts.light, fontSize: 11, color: Colors.cream50, letterSpacing: 0.02 * 11 },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 8, paddingBottom: 100 },
-  adminButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.cream, borderRadius: 12, paddingVertical: 12 },
+  // matches prototype .btn-primary
+  adminButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.cream, borderRadius: 11, paddingVertical: 11 },
   adminButtonText: { fontFamily: Fonts.bold, fontSize: 13, color: Colors.surface, letterSpacing: 0.3 },
   emptyState: { alignItems: 'center', gap: 10, paddingTop: 40, paddingHorizontal: 24 },
   emptyIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

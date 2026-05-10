@@ -6,9 +6,10 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { BottomSheetView } from '@gorhom/bottom-sheet';
-import { useMutation } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { Colors } from '../../constants/colors';
@@ -32,9 +33,27 @@ export default function AddPartSheet({ titleId, onClose }: Props) {
   const [format, setFormat] = useState<'zip' | 'video'>('zip');
   const [url, setUrl] = useState('');
   const [size, setSize] = useState('');
+  const [resolvedName, setResolvedName] = useState('');
+  const [fetching, setFetching] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const addPart = useMutation(api.parts.add);
+  const getFileMeta = useAction(api.drive.getFileMeta);
+
+  const fetchMeta = async (raw: string) => {
+    if (!raw.trim() || !DRIVE_ID_RE.test(raw)) return;
+    setFetching(true);
+    try {
+      const meta = await getFileMeta({ driveUrl: raw.trim() });
+      setFormat(meta.format as 'zip' | 'video');
+      if (meta.size) setSize(meta.size);
+      if (meta.name) setResolvedName(meta.name);
+    } catch {
+      // ignore — admin can set manually
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!url.trim()) {
@@ -42,7 +61,7 @@ export default function AddPartSheet({ titleId, onClose }: Props) {
       return;
     }
     const driveFileId = url.match(DRIVE_ID_RE)?.[1] ?? url;
-    const filename = extractFilename(url);
+    const filename = resolvedName || extractFilename(url);
     setLoading(true);
     try {
       await addPart({
@@ -93,11 +112,15 @@ export default function AddPartSheet({ titleId, onClose }: Props) {
         placeholderTextColor={Colors.cream30}
         value={url}
         onChangeText={setUrl}
+        onBlur={() => fetchMeta(url)}
         autoCapitalize="none"
         autoCorrect={false}
       />
-      {url.trim() ? (
-        <Text style={styles.preview}>→ {extractFilename(url)}</Text>
+      {fetching && (
+        <ActivityIndicator size="small" color={Colors.cream50} style={{ alignSelf: 'flex-start', marginLeft: 4 }} />
+      )}
+      {!fetching && url.trim() ? (
+        <Text style={styles.preview}>→ {resolvedName || extractFilename(url)}</Text>
       ) : null}
 
       <Text style={styles.fieldLabel}>SIZE (OPTIONAL)</Text>

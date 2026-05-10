@@ -33,6 +33,13 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "mimeType": "video/*" }],
+          "category": ["DEFAULT", "BROWSABLE"]
+        }
       ]
     },
     "ios": {

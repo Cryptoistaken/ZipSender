@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useMutation } from 'convex/react';
+import { useMutation, useAction } from 'convex/react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Colors } from '../../constants/colors';
@@ -22,6 +23,8 @@ interface UrlRow {
   url: string;
   format: 'zip' | 'video';
   size: string;
+  resolvedName: string;
+  fetching: boolean;
 }
 
 interface Props {
@@ -39,17 +42,34 @@ export default function AddSeriesSheet({ onClose }: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'movie' | 'series'>('series');
   const [urlRows, setUrlRows] = useState<UrlRow[]>([
-    { id: '1', url: '', format: 'zip', size: '' },
+    { id: '1', url: '', format: 'zip', size: '', resolvedName: '', fetching: false },
   ]);
   const [loading, setLoading] = useState(false);
 
   const createTitle = useMutation(api.titles.create);
   const addPart = useMutation(api.parts.add);
+  const getFileMeta = useAction(api.drive.getFileMeta);
+
+  const fetchMeta = async (rowId: string, url: string) => {
+    if (!url.trim() || !DRIVE_ID_RE.test(url)) return;
+    updateRow(rowId, { fetching: true });
+    try {
+      const meta = await getFileMeta({ driveUrl: url.trim() });
+      updateRow(rowId, {
+        fetching: false,
+        format: meta.format as 'zip' | 'video',
+        size: meta.size ?? '',
+        resolvedName: meta.name ?? '',
+      });
+    } catch {
+      updateRow(rowId, { fetching: false });
+    }
+  };
 
   const addUrlRow = () => {
     setUrlRows((r) => [
       ...r,
-      { id: Date.now().toString(), url: '', format: 'zip', size: '' },
+      { id: Date.now().toString(), url: '', format: 'zip', size: '', resolvedName: '', fetching: false },
     ]);
   };
 
@@ -80,7 +100,7 @@ export default function AddSeriesSheet({ onClose }: Props) {
       for (const row of filledRows) {
         const driveFileId =
           row.url.match(DRIVE_ID_RE)?.[1] ?? row.url;
-        const filename = extractFilename(row.url);
+        const filename = row.resolvedName || extractFilename(row.url);
         await addPart({
           titleId,
           label: filename,
@@ -174,12 +194,16 @@ export default function AddSeriesSheet({ onClose }: Props) {
             placeholderTextColor={Colors.cream30}
             value={row.url}
             onChangeText={(v) => updateRow(row.id, { url: v })}
+            onBlur={() => fetchMeta(row.id, row.url)}
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {row.url.trim() ? (
+          {row.fetching && (
+            <ActivityIndicator size="small" color={Colors.cream50} style={{ alignSelf: 'flex-start', marginLeft: 4 }} />
+          )}
+          {!row.fetching && (row.resolvedName || row.url.trim()) ? (
             <Text style={styles.preview} numberOfLines={1}>
-              → {extractFilename(row.url)}
+              → {row.resolvedName || extractFilename(row.url)}
             </Text>
           ) : null}
           <TextInput

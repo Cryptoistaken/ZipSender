@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { unzip } from 'react-native-zip-archive';
 import { Doc } from '../convex/_generated/dataModel';
 import { useDownloadsStore, ExtractedFile } from '../store/downloads';
@@ -23,10 +24,6 @@ interface Props {
   titleName: string;
 }
 
-// ── Drive URL helpers ────────────────────────────────────────────────────────
-// Drive share URLs look like:
-//   https://drive.google.com/file/d/FILE_ID/view?usp=...
-// We extract the file ID and hit the usercontent download endpoint.
 const DRIVE_ID_RE = /(?:\/d\/|[?&]id=)([a-zA-Z0-9_-]{25,})/;
 
 function parseDriveId(raw: string): string {
@@ -34,30 +31,23 @@ function parseDriveId(raw: string): string {
   return raw.match(DRIVE_ID_RE)?.[1] ?? raw;
 }
 
-// Confirmed working download endpoint (matches Scripts/index.js)
 function buildDriveUrl(fileId: string): string {
   return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
 }
 
-// ── Path helpers ─────────────────────────────────────────────────────────────
 const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v'];
 
 function sanitizeName(name: string): string {
   return name.replace(/[/\\:*?"<>|]/g, '_').trim();
 }
 
-// Saves to: <documentDirectory>/ZipSender/<title name>/
 function titleDir(titleName: string): string {
   const base = FileSystem.documentDirectory ?? '';
   return `${base}ZipSender/${sanitizeName(titleName)}/`;
 }
 
 function buildFilename(part: Doc<'parts'>): string {
-  if (
-    part.filename &&
-    part.filename !== 'file' &&
-    !part.filename.startsWith('drive_')
-  ) {
+  if (part.filename && part.filename !== 'file' && !part.filename.startsWith('drive_')) {
     return part.filename;
   }
   const fileId = parseDriveId(part.driveFileId || part.driveUrl || '');
@@ -66,8 +56,7 @@ function buildFilename(part: Doc<'parts'>): string {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
@@ -90,13 +79,63 @@ async function scanVideoFiles(dir: string): Promise<ExtractedFile[]> {
   }
 }
 
+async function saveToMediaLibrary(filePaths: string[]): Promise<void> {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') return;
+    for (const fp of filePaths) {
+      try { await MediaLibrary.createAssetAsync(fp); } catch { /* skip */ }
+    }
+  } catch { /* permission denied */ }
+}
+
+function AnimatedDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dot1, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(dot2, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(dot3, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(dot1, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot2, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot3, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.dotsRow}>
+      {[dot1, dot2, dot3].map((anim, i) => (
+        <Animated.View key={i} style={[styles.dot, { opacity: anim }]} />
+      ))}
+    </View>
+  );
+}
+
 export default function DownloadButton({ part, titleName }: Props) {
-  const [state, setState] = useState<DlState>('idle');
+  const items = useDownloadsStore((s) => s.items);
+  const addDownload = useDownloadsStore((s) => s.add);
+
+  const alreadyDownloaded = items.some((i) => i.id === part._id);
+  const [state, setState] = useState<DlState>(alreadyDownloaded ? 'done' : 'idle');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
-  const addDownload = useDownloadsStore((s) => s.add);
+
+  useEffect(() => {
+    const downloaded = items.some((i) => i.id === part._id);
+    if (!downloaded && state === 'done') setState('idle');
+    if (downloaded && state === 'idle') setState('done');
+  }, [items, part._id]);
 
   useEffect(() => {
     if (state === 'downloading') {
@@ -116,28 +155,20 @@ export default function DownloadButton({ part, titleName }: Props) {
     setErrorMsg('');
 
     try {
-      // ── 1. Resolve file ID ───────────────────────────────────────────────
-      // driveFileId may be stored as a full URL or a bare ID
       const rawId = part.driveFileId || part.driveUrl || '';
       const fileId = parseDriveId(rawId);
-      if (!fileId || fileId.length < 10) {
-        throw new Error('Invalid Drive file ID. Check admin panel URL.');
-      }
+      if (!fileId || fileId.length < 10) throw new Error('Invalid Drive file ID');
 
       const downloadUrl = buildDriveUrl(fileId);
       const filename = buildFilename(part);
       const folder = titleDir(titleName);
 
-      // ── 2. Ensure destination folder exists ─────────────────────────────
       await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
       const destPath = folder + filename;
 
       const existing = await FileSystem.getInfoAsync(destPath);
-      if (existing.exists) {
-        await FileSystem.deleteAsync(destPath, { idempotent: true });
-      }
+      if (existing.exists) await FileSystem.deleteAsync(destPath, { idempotent: true });
 
-      // ── 3. Download ──────────────────────────────────────────────────────
       downloadResumable.current = FileSystem.createDownloadResumable(
         downloadUrl,
         destPath,
@@ -154,22 +185,38 @@ export default function DownloadButton({ part, titleName }: Props) {
       if (!result?.uri) throw new Error('Download failed — no URI returned');
       setProgress(100);
 
-      // ── 4. Post-process: extract ZIP or wrap single video ────────────────
+      let actualFormat = part.format;
+      try {
+        const metaRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name&key=${process.env.EXPO_PUBLIC_GOOGLE_API_KEY}`
+        );
+        if (metaRes.ok) {
+          const meta = await metaRes.json();
+          const mime: string = meta.mimeType ?? '';
+          const isZip =
+            mime === 'application/zip' ||
+            mime === 'application/x-zip-compressed' ||
+            (meta.name as string)?.toLowerCase().endsWith('.zip');
+          actualFormat = isZip ? 'zip' : 'video';
+        }
+      } catch { /* fall back to stored format */ }
+
       let extractedFiles: ExtractedFile[] = [];
 
-      if (part.format === 'zip') {
+      if (actualFormat === 'zip') {
         setState('extracting');
         const extractDir = folder + 'extracted/';
         await FileSystem.makeDirectoryAsync(extractDir, { intermediates: true });
         await unzip(result.uri, extractDir);
         await FileSystem.deleteAsync(result.uri, { idempotent: true });
         extractedFiles = await scanVideoFiles(extractDir);
+        await saveToMediaLibrary(extractedFiles.map((f) => f.filePath));
       } else {
         const info = await FileSystem.getInfoAsync(destPath, { size: true });
         extractedFiles = [{ filename, filePath: destPath, size: (info as any).size ?? 0 }];
+        await saveToMediaLibrary([destPath]);
       }
 
-      // ── 5. Persist ───────────────────────────────────────────────────────
       const totalBytes = extractedFiles.reduce((s, f) => s + f.size, 0);
       addDownload({
         id: part._id,
@@ -177,7 +224,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         filename,
         folderPath: folder,
         size: part.size ?? (totalBytes > 0 ? formatBytes(totalBytes) : '—'),
-        format: part.format === 'zip' ? 'zip' : 'video',
+        format: actualFormat === 'zip' ? 'zip' : 'video',
         downloadedAt: Date.now(),
         extractedFiles,
       });
@@ -211,7 +258,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         activeOpacity={0.85}
       >
         <Text style={[styles.idleLabel, state === 'error' && styles.errorLabel]} numberOfLines={1}>
-          {state === 'error' ? `Retry \u00b7 ${errorMsg.slice(0, 28)}` : part.label || buildFilename(part)}
+          {state === 'error' ? `Retry · ${errorMsg.slice(0, 28)}` : part.label || buildFilename(part)}
         </Text>
         <View style={[styles.idleIcon, state === 'error' && styles.errorIcon]}>
           <MaterialCommunityIcons name={state === 'error' ? 'refresh' : 'arrow-down'} size={14} color={Colors.surface} />
@@ -244,10 +291,8 @@ export default function DownloadButton({ part, titleName }: Props) {
     return (
       <View style={styles.extractingPill}>
         <MaterialCommunityIcons name="archive-arrow-down-outline" size={16} color={Colors.cream50} />
-        <Text style={styles.extractingLabel}>Extracting\u2026</Text>
-        <View style={styles.dotsRow}>
-          <View style={styles.dot} /><View style={[styles.dot, { opacity: 0.6 }]} /><View style={[styles.dot, { opacity: 0.3 }]} />
-        </View>
+        <Text style={styles.extractingLabel}>Extracting…</Text>
+        <AnimatedDots />
       </View>
     );
   }
@@ -257,7 +302,7 @@ export default function DownloadButton({ part, titleName }: Props) {
       <MaterialCommunityIcons name="check-circle" size={16} color={Colors.cream} />
       <Text style={styles.doneLabel}>Downloaded</Text>
       <TouchableOpacity style={styles.viewBtn} onPress={() => router.push('/(user)/downloads')} activeOpacity={0.8}>
-        <Text style={styles.viewBtnText}>View \u2192</Text>
+        <Text style={styles.viewBtnText}>View →</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Doc } from '../convex/_generated/dataModel';
@@ -22,28 +23,40 @@ export default function TitleCard({ title }: Props) {
 
   return (
     <View style={styles.card}>
-      {/* Badges row — overlaid at bottom like prototype .card-img-badges */}
-      <View style={styles.badgeRow}>
-        <View style={[styles.badge, title.type === 'series' ? styles.badgeSeries : styles.badgeMovie]}>
-          <Text style={[styles.badgeText, title.type === 'series' ? styles.badgeSeriesText : styles.badgeMovieText]}>
-            {title.type === 'movie' ? 'Movie' : 'Series'}
-          </Text>
+      {/* matches prototype .card-img — gradient strip with overlaid badges */}
+      <View style={styles.cardImg}>
+        {/* Dark gradient placeholder — matches card-img-fade */}
+        <LinearGradient
+          colors={['rgba(24,24,24,0)', '#1e1e1e']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        />
+        {/* matches .card-img-badges */}
+        <View style={styles.cardImgBadges}>
+          <View style={[styles.badge, title.type === 'series' ? styles.badgeSeries : styles.badgeMovie]}>
+            <Text style={[styles.badgeText, title.type === 'series' ? styles.badgeSeriesText : styles.badgeMovieText]}>
+              {title.type === 'movie' ? 'Movie' : 'Series'}
+            </Text>
+          </View>
+          {hasZip && (
+            <View style={[styles.badge, styles.badgeZip]}>
+              <Text style={[styles.badgeText, styles.badgeZipText]}>ZIP</Text>
+            </View>
+          )}
+          {hasVideo && (
+            <View style={[styles.badge, styles.badgeMp4]}>
+              <Text style={[styles.badgeText, styles.badgeMp4Text]}>MP4</Text>
+            </View>
+          )}
         </View>
-        {hasZip && (
-          <View style={[styles.badge, styles.badgeZip]}>
-            <Text style={[styles.badgeText, styles.badgeZipText]}>ZIP</Text>
-          </View>
-        )}
-        {hasVideo && (
-          <View style={[styles.badge, styles.badgeMp4]}>
-            <Text style={[styles.badgeText, styles.badgeMp4Text]}>MP4</Text>
-          </View>
-        )}
       </View>
 
-      {/* Card body */}
+      {/* Card body — matches prototype .card-body */}
       <View style={styles.body}>
+        {/* matches .card-title */}
         <Text style={styles.titleText}>{title.name}</Text>
+        {/* matches .card-sub */}
         {subtitle ? <Text style={styles.subtitleText}>{subtitle}</Text> : null}
 
         {/* Download buttons */}
@@ -71,12 +84,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cream10,
   },
-  badgeRow: {
+  // matches prototype .card-img — 88px height
+  cardImg: {
+    height: 88,
+    backgroundColor: Colors.card,
+    position: 'relative',
+    justifyContent: 'flex-end',
+  },
+  // matches prototype .card-img-badges
+  cardImgBadges: {
+    position: 'absolute',
+    bottom: 10,
+    left: 14,
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
-    paddingHorizontal: 15,
-    paddingTop: 14,
   },
   // matches prototype .badge with pill shape (999px radius)
   badge: {
@@ -116,17 +137,21 @@ const styles = StyleSheet.create({
   },
   badgeMp4Text: { color: Colors.cream },
 
+  // matches prototype .card-body
   body: {
-    padding: 13,
-    paddingTop: 10,
+    padding: 15,
+    paddingTop: 13,
     gap: 8,
   },
+  // matches prototype .card-title
   titleText: {
     fontFamily: Fonts.extraBold,
     fontSize: 14,
     color: Colors.cream,
     letterSpacing: -0.03 * 14,
+    marginBottom: 2,
   },
+  // matches prototype .card-sub
   subtitleText: {
     fontFamily: Fonts.light,
     fontSize: 11,

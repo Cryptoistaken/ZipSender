@@ -306,22 +306,24 @@ const styles = StyleSheet.create({
     color: Colors.cream30,
   },
 
+  // matches prototype .fab — 48px, cream glow
   fab: {
     position: 'absolute',
     bottom: 24,
     right: 16,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.cream,
+    shadowColor: 'rgba(222,219,200,1)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 18,
     elevation: 8,
   },
-  sheetBg: { backgroundColor: Colors.card2 },
-  sheetHandle: { backgroundColor: Colors.cream30 },
+  // matches prototype .sheet background: #1a1a1a (slightly lighter than card2 #1e1e1e)
+  sheetBg: { backgroundColor: '#1a1a1a' },
+  sheetHandle: { backgroundColor: Colors.cream20, width: 36, height: 4, borderRadius: 2 },
 });

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from 'convex/react';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { api } from '../../convex/_generated/api';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
@@ -59,7 +60,9 @@ export default function HomeScreen() {
           </View>
         ) : titles.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <View style={styles.emptyIconBox}>
+              <MaterialCommunityIcons name="inbox-outline" size={26} color={Colors.cream30} />
+            </View>
             <Text style={styles.emptyTitle}>No titles yet</Text>
             <Text style={styles.emptyBody}>Check back soon for new content.</Text>
           </View>
@@ -77,14 +80,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 100, paddingHorizontal: 16, paddingTop: 4 },
+  scrollContent: { paddingBottom: 100, paddingHorizontal: 16, paddingTop: 0 },
 
-  // ── hero strip ─────────────────────────────────────────────────────────────
+  // ── hero strip — matches prototype .hero-strip (168px) ────────────────────
   heroStrip: {
-    height: 200,
+    height: 168,
     overflow: 'hidden',
     position: 'relative',
-    marginBottom: 4,
+    marginBottom: 14,
     marginHorizontal: -16,
   },
   heroVideo: {
@@ -98,6 +101,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 18,
   },
+  // matches prototype .hero-label
   heroLabel: {
     fontSize: 8,
     fontFamily: Fonts.bold,
@@ -106,6 +110,7 @@ const styles = StyleSheet.create({
     color: Colors.cream50,
     marginBottom: 3,
   },
+  // matches prototype .hero-title
   heroTitle: {
     fontSize: 26,
     fontFamily: Fonts.extraBold,
@@ -124,21 +129,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.cream30,
   },
+  // matches prototype .empty-state
   emptyContainer: {
-    paddingTop: 80,
+    paddingTop: 60,
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 10,
+    paddingHorizontal: 24,
   },
-  emptyIcon: { fontSize: 40 },
+  // matches prototype .empty-icon
+  emptyIconBox: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  // matches prototype .empty-title
   emptyTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 18,
-    color: Colors.cream50,
+    fontFamily: Fonts.extraBold,
+    fontSize: 15,
+    color: Colors.cream,
+    letterSpacing: -0.03 * 15,
   },
+  // matches prototype .empty-sub
   emptyBody: {
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    color: Colors.cream30,
+    fontFamily: Fonts.light,
+    fontSize: 12,
+    color: Colors.cream50,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 });

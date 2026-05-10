@@ -1,0 +1,342 @@
+name: CI / CD
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - "v*.*.*" # trigger release job on version tags (e.g. v1.2.3)
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Build a release APK (signed)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared env
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  NODE_VERSION: "20"
+  JAVA_VERSION: "17"
+  CONVEX_URL: "https://majestic-fennec-666.eu-west-1.convex.cloud"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Jobs
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  # ── 1. Type-check & lint ───────────────────────────────────────────────────
+  lint:
+    name: Type-check & Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: Expo lint
+        run: npm run lint -- --max-warnings 0
+        continue-on-error: true # warn but don't block on lint issues
+
+  # ── 2. Unit tests ─────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test -- --ci --reporters=default --reporters=jest-junit --passWithNoTests
+        env:
+          JEST_JUNIT_OUTPUT_DIR: ./reports
+          JEST_JUNIT_OUTPUT_NAME: unit-tests.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ github.run_number }}
+          path: reports/unit-tests.xml
+          retention-days: 14
+
+  # ── 3. Debug APK build ────────────────────────────────────────────────────
+  build-debug:
+    name: Build Debug APK
+    runs-on: ubuntu-24.04
+    needs: test
+    # Build debug on every push/PR — skip on release tags (release job handles those)
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    outputs:
+      apk-name: zipsender-debug-${{ github.run_number }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create .env
+        run: echo "EXPO_PUBLIC_CONVEX_URL=${{ env.CONVEX_URL }}" > .env
+
+      - name: Ensure placeholder assets
+        run: |
+          mkdir -p assets
+          python3 - <<'PYEOF'
+          import struct, zlib, os
+
+          def make_dark_png(path, w=1024, h=1024, color=(16,16,16)):
+              if os.path.exists(path) and os.path.getsize(path) > 100:
+                  return
+              def chunk(name, data):
+                  c = struct.pack('>I', len(data)) + name + data
+                  return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+              r, g, b = color
+              sig  = b'\x89PNG\r\n\x1a\n'
+              ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+              raw  = b''.join(b'\x00' + bytes([r,g,b] * w) for _ in range(h))
+              idat = chunk(b'IDAT', zlib.compress(raw))
+              iend = chunk(b'IEND', b'')
+              with open(path, 'wb') as f:
+                  f.write(sig + ihdr + idat + iend)
+
+          make_dark_png('assets/icon.png')
+          make_dark_png('assets/adaptive-icon.png')
+          make_dark_png('assets/splash.png')
+          make_dark_png('assets/favicon.png', 64, 64)
+          PYEOF
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      - name: Bundle JavaScript
+        run: |
+          mkdir -p android/app/src/main/assets
+          node node_modules/@expo/cli/build/bin/cli export:embed \
+            --platform android \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res \
+            --dev false
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --build-cache \
+            --gradle-user-home ~/.gradle
+        env:
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipsender-debug-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
+
+  # ── 4. Release APK build (signed) ────────────────────────────────────────
+  build-release:
+    name: Build Release APK (Signed)
+    runs-on: ubuntu-24.04
+    needs: test
+    # Run on version tags OR manual dispatch with release=true
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.release == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create .env
+        run: echo "EXPO_PUBLIC_CONVEX_URL=${{ env.CONVEX_URL }}" > .env
+
+      - name: Ensure placeholder assets
+        run: |
+          mkdir -p assets
+          python3 - <<'PYEOF'
+          import struct, zlib, os
+
+          def make_dark_png(path, w=1024, h=1024, color=(16,16,16)):
+              if os.path.exists(path) and os.path.getsize(path) > 100:
+                  return
+              def chunk(name, data):
+                  c = struct.pack('>I', len(data)) + name + data
+                  return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+              r, g, b = color
+              sig  = b'\x89PNG\r\n\x1a\n'
+              ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+              raw  = b''.join(b'\x00' + bytes([r,g,b] * w) for _ in range(h))
+              idat = chunk(b'IDAT', zlib.compress(raw))
+              iend = chunk(b'IEND', b'')
+              with open(path, 'wb') as f:
+                  f.write(sig + ihdr + idat + iend)
+
+          make_dark_png('assets/icon.png')
+          make_dark_png('assets/adaptive-icon.png')
+          make_dark_png('assets/splash.png')
+          make_dark_png('assets/favicon.png', 64, 64)
+          PYEOF
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      - name: Bundle JavaScript
+        run: |
+          mkdir -p android/app/src/main/assets
+          node node_modules/@expo/cli/build/bin/cli export:embed \
+            --platform android \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res \
+            --dev false
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+
+      # Decode the keystore from a base64 secret
+      # To set up: base64 -w 0 your-release-key.jks → paste into ANDROID_KEYSTORE_BASE64 secret
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.jks
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build release APK
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --build-cache \
+            --gradle-user-home ~/.gradle
+        env:
+          EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
+          ANDROID_KEYSTORE_PATH: release.jks
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zipsender-release-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      # Create a GitHub Release on version tags
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+          name: "ZipSender ${{ github.ref_name }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }} # e.g. v1.0.0-beta → prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 5. Notify on failure ──────────────────────────────────────────────────
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-24.04
+    needs: [lint, test, build-debug]
+    if: failure()
+    steps:
+      - name: Post failure summary
+        run: |
+          echo "## ❌ CI Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "One or more jobs failed on **${{ github.ref_name }}** (run #${{ github.run_number }})." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY

@@ -74,6 +74,7 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // matches prototype storage widget — card background, 14px radius, cream10 border
   widget: {
     backgroundColor: Colors.card,
     borderRadius: 14,
