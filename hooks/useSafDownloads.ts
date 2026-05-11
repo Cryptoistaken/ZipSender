@@ -110,25 +110,31 @@ export async function deletePublicFolder(subDir: string): Promise<void> {
 export async function requestDownloadsPermission(): Promise<string | null> {
   if (Platform.OS !== 'android') return null;
   try {
-    // Pre-point picker at the Downloads folder
     const downloadsHint = SAF.getUriForDirectoryInRoot('Download');
+    console.log(`${TAG} requestDownloadsPermission: hint URI = ${decodeURIComponent(downloadsHint)}`);
     const result = await SAF.requestDirectoryPermissionsAsync(downloadsHint);
-    if (!result.granted) return null;
+    console.log(`${TAG} requestDirectoryPermissionsAsync result:`, JSON.stringify(result));
+    if (!result.granted) {
+      console.warn(`${TAG} Permission NOT granted by user`);
+      return null;
+    }
+    console.log(`${TAG} Permission granted. directoryUri = ${decodeURIComponent(result.directoryUri)}`);
     await saveSafUri(result.directoryUri);
     return result.directoryUri;
-  } catch {
+  } catch (e) {
+    console.error(`${TAG} requestDownloadsPermission threw:`, e);
     return null;
   }
 }
 
-/**
- * Get or request the SAF Downloads directory URI.
- * Returns null if the user denies or we're not on Android.
- */
 export async function getOrRequestSafUri(): Promise<string | null> {
   if (Platform.OS !== 'android') return null;
   const cached = await loadSafUri();
-  if (cached) return cached;
+  if (cached) {
+    console.log(`${TAG} getOrRequestSafUri: using cached URI = ${decodeURIComponent(cached)}`);
+    return cached;
+  }
+  console.log(`${TAG} getOrRequestSafUri: no cached URI, requesting permission`);
   return requestDownloadsPermission();
 }
 
@@ -140,6 +146,37 @@ export async function getOrRequestSafUri(): Promise<string | null> {
  *
  * Returns the SAF URI of the created file, or null on failure.
  */
+// ─── debug tag used across all SAF logs ──────────────────────────────────────
+const TAG = '[SAF]';
+
+/** Pretty-decode a SAF URI for logging */
+function dbgUri(label: string, uri: string): void {
+  console.log(`${TAG} ${label}:`);
+  console.log(`  raw  : ${uri}`);
+  console.log(`  dec  : ${decodeURIComponent(uri)}`);
+}
+
+/**
+ * Resolve a SAF tree URI to its matching document URI.
+ * SAF.makeDirectoryAsync / createFileAsync need a *document* URI as parent,
+ * not the raw tree URI returned by requestDirectoryPermissionsAsync.
+ * If the granted URI is already a document URI this is a no-op.
+ */
+function toDocumentUri(treeUri: string): string {
+  // tree URI:     content://com.android.externalstorage.documents/tree/primary%3ADownload
+  // document URI: content://com.android.externalstorage.documents/tree/primary%3ADownload/document/primary%3ADownload
+  if (treeUri.includes('/document/')) {
+    console.log(`${TAG} toDocumentUri: already a document URI`);
+    return treeUri; // already resolved
+  }
+  const treeId = treeUri.split('/tree/')[1] ?? '';
+  const documentUri = `${treeUri}/document/${treeId}`;
+  console.log(`${TAG} toDocumentUri: converted tree → document`);
+  console.log(`  tree : ${decodeURIComponent(treeUri)}`);
+  console.log(`  doc  : ${decodeURIComponent(documentUri)}`);
+  return documentUri;
+}
+
 export async function copyToPublicDownloads(
   srcPath: string,
   filename: string,
@@ -147,56 +184,111 @@ export async function copyToPublicDownloads(
 ): Promise<string | null> {
   if (Platform.OS !== 'android') return null;
 
-  const dirUri = await getOrRequestSafUri();
-  if (!dirUri) return null;
+  console.log(`${TAG} ═══ copyToPublicDownloads START ═══`);
+  console.log(`${TAG} srcPath : ${srcPath}`);
+  console.log(`${TAG} filename: ${filename}`);
+  console.log(`${TAG} subDir  : ${subDir}`);
+
+  const rawDirUri = await getOrRequestSafUri();
+  if (!rawDirUri) {
+    console.warn(`${TAG} No SAF URI — permission not granted`);
+    return null;
+  }
+
+  dbgUri('rawDirUri (from AsyncStorage)', rawDirUri);
+
+  // Convert tree URI → document URI so makeDirectoryAsync / createFileAsync work
+  const dirUri = toDocumentUri(rawDirUri);
+  dbgUri('dirUri (document)', dirUri);
+
+  // Verify the source file exists before trying to read it
+  try {
+    const srcInfo = await FileSystem.getInfoAsync(srcPath);
+    console.log(`${TAG} srcFile exists: ${srcInfo.exists}, size: ${(srcInfo as any).size ?? 'n/a'}`);
+    if (!srcInfo.exists) {
+      console.error(`${TAG} Source file does not exist: ${srcPath}`);
+      return null;
+    }
+  } catch (e) {
+    console.error(`${TAG} Failed to stat srcPath:`, e);
+    return null;
+  }
 
   try {
     // Read source as base64
+    console.log(`${TAG} Reading source file as base64…`);
     const base64 = await FileSystem.readAsStringAsync(srcPath, {
       encoding: FileSystem.EncodingType.Base64,
     });
+    console.log(`${TAG} base64 length: ${base64.length} chars`);
 
-    // Create ZipSender sub-directory inside the granted Downloads folder.
-    // SAF makeDirectoryAsync is safe to call even if the dir already exists
-    // (it returns the existing URI).  We nest: Downloads/ZipSender/<subDir>/
-    // SAF makeDirectoryAsync throws if directory already exists.
-    // We use a helper that retries with a list-and-match fallback,
-    // matching on the last URI segment (after the final %3A or /) to
-    // handle percent-encoded names correctly.
+    // ── Directory helper ────────────────────────────────────────────────────
+    // SAF.makeDirectoryAsync throws if the dir already exists,
+    // so we catch and find it by name from readDirectoryAsync.
     const safGetOrCreateDir = async (parentUri: string, name: string): Promise<string> => {
+      console.log(`${TAG} safGetOrCreateDir('${name}')`);
+      dbgUri(`  parentUri`, parentUri);
       try {
-        return await SAF.makeDirectoryAsync(parentUri, name);
-      } catch {
-        // makeDirectoryAsync throws if the dir already exists — find it by name
-        const entries = await SAF.readDirectoryAsync(parentUri).catch(() => [] as string[]);
+        const newUri = await SAF.makeDirectoryAsync(parentUri, name);
+        console.log(`${TAG}   → created new dir: ${decodeURIComponent(newUri)}`);
+        return newUri;
+      } catch (mkErr) {
+        console.log(`${TAG}   makeDirectoryAsync threw (likely already exists):`, String(mkErr));
+        // Dir already exists — find it by listing parent
+        const entries = await SAF.readDirectoryAsync(parentUri).catch((le) => {
+          console.error(`${TAG}   readDirectoryAsync failed:`, le);
+          return [] as string[];
+        });
+        console.log(`${TAG}   listing parent — ${entries.length} entries:`);
+        entries.forEach((e: string) => console.log(`${TAG}     ${decodeURIComponent(e)}`));
+
         const found = entries.find((e: string) => {
-          // SAF document URIs look like: content://.../.../primary%3ADownload%2FZipSender
-          // We need the last path component after the final %2F or /
           const decoded = decodeURIComponent(e);
-          const lastSlash = decoded.lastIndexOf('/');
-          const segment = decoded.slice(lastSlash + 1);
+          const segment = decoded.slice(decoded.lastIndexOf('/') + 1);
+          console.log(`${TAG}     match check: '${segment}' === '${name}' ? ${segment === name}`);
           return segment === name;
         });
-        if (found) return found;
-        // Absolute last resort — return parent so we don't silently lose files
+
+        if (found) {
+          console.log(`${TAG}   → found existing dir: ${decodeURIComponent(found)}`);
+          return found;
+        }
+        console.error(`${TAG}   → could not find '${name}' in parent listing — falling back to parent`);
         return parentUri;
       }
     };
 
+    console.log(`${TAG} Step 1: get/create ZipSender dir inside granted root`);
     const zipSenderDirUri = await safGetOrCreateDir(dirUri, 'ZipSender');
-    const titleDirUri = await safGetOrCreateDir(zipSenderDirUri, subDir);
+    dbgUri('zipSenderDirUri', zipSenderDirUri);
 
-    // Create the file and write base64 content
+    console.log(`${TAG} Step 2: get/create title subdir '${subDir}'`);
+    const titleDirUri = await safGetOrCreateDir(zipSenderDirUri, subDir);
+    dbgUri('titleDirUri', titleDirUri);
+
+    // ── Create and write the file ────────────────────────────────────────────
     const mime = mimeForExt(filename);
     const nameNoExt = nameWithoutExt(filename);
+    console.log(`${TAG} Step 3: createFileAsync`);
+    console.log(`${TAG}   nameNoExt: '${nameNoExt}', mime: '${mime}'`);
+    dbgUri('  titleDirUri passed to createFileAsync', titleDirUri);
+
     const fileUri = await SAF.createFileAsync(titleDirUri, nameNoExt, mime);
+    console.log(`${TAG}   → fileUri: ${decodeURIComponent(fileUri)}`);
+
+    console.log(`${TAG} Step 4: writeAsStringAsync (base64)`);
     await FileSystem.writeAsStringAsync(fileUri, base64, {
       encoding: FileSystem.EncodingType.Base64,
     });
+    console.log(`${TAG} ✓ File written successfully`);
+    console.log(`${TAG} ═══ copyToPublicDownloads DONE ═══`);
 
     return fileUri;
   } catch (err) {
-    console.warn('[SAF] copyToPublicDownloads failed:', err);
+    console.error(`${TAG} ✗ copyToPublicDownloads FAILED`);
+    console.error(`${TAG}   error:`, err);
+    console.error(`${TAG}   rawDirUri : ${decodeURIComponent(rawDirUri)}`);
+    console.error(`${TAG}   dirUri    : ${decodeURIComponent(dirUri)}`);
     return null;
   }
 }
