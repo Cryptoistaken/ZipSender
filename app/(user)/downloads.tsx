@@ -30,33 +30,35 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// Opens the system file manager — tries the system Downloads app first,
-// then falls back to the generic Files app. Since our files live in
-// documentDirectory (app-private), not public Downloads, we can only
-// open the nearest system browser and let the user navigate.
-async function openFolder(_folderPath: string) {
+// Opens the actual ZipSender folder in the system Files app via a SAF VIEW intent.
+// Falls back to the public Downloads root if no SAF URI is available.
+async function openFolder(publicFolderUri?: string) {
   try {
     if (Platform.OS === 'android') {
-      // Try the system Files app (CATEGORY_APP_FILES is the correct category)
-      try {
-        await IntentLauncher.startActivityAsync('android.intent.action.MAIN', {
-          category: 'android.intent.category.APP_FILES',
-        });
-        return;
-      } catch {}
+      // Preferred: open the specific SAF folder URI the user granted access to
+      if (publicFolderUri) {
+        try {
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: publicFolderUri,
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            type: 'vnd.android.document/directory',
+          });
+          return;
+        } catch {}
+      }
 
-      // Fallback: open content://downloads/public_downloads
+      // Fallback: open Downloads via content URI — avoids routing to Google app
       try {
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: 'content://downloads/public_downloads',
+          data: 'content://com.android.externalstorage.documents/root/primary',
           flags: 1,
         });
         return;
       } catch {}
 
-      // Last resort: open the Settings > Storage screen
+      // Last resort: Downloads content shortcut
       try {
-        await Linking.openURL('content://com.android.externalstorage.documents/root/primary');
+        await Linking.openURL('content://downloads/public_downloads');
       } catch {}
     }
   } catch {}
@@ -351,7 +353,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
             {/* Open folder */}
             <TouchableOpacity
               style={styles.dlBtn}
-              onPress={() => openFolder(item.folderPath)}
+              onPress={() => openFolder(item.publicFolderUri)}
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons name="folder-open-outline" size={16} color={Colors.cream50} />

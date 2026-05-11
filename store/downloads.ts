@@ -13,7 +13,8 @@ export interface DownloadedItem {
   id: Id<'parts'>;
   titleName: string;
   filename: string;       // original downloaded filename
-  folderPath: string;     // absolute folder URI, e.g. .../Downloads/ZipSender/True Beauty season 01/
+  folderPath: string;     // private app documentDirectory folder path (for playback)
+  publicFolderUri?: string; // SAF content:// URI for the public Downloads/ZipSender/<title>/ folder (for openFolder)
   size: string;           // human-readable total size
   format: 'zip' | 'video';
   downloadedAt: number;

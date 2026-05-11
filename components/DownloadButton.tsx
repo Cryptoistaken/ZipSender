@@ -208,17 +208,26 @@ export default function DownloadButton({ part, titleName }: Props) {
 
       let extractedFiles: ExtractedFile[] = [];
 
+      let publicFolderUri: string | undefined;
+
       if (actualFormat === 'zip') {
         setState('extracting');
         const extractDir = folder + 'extracted/';
         await FileSystem.makeDirectoryAsync(extractDir, { intermediates: true });
-        await unzip(result.uri.replace(/^file:\/\//, ''), extractDir);
+        // react-native-zip-archive requires plain paths — strip file:// from BOTH source and dest
+        const srcPath = result.uri.replace(/^file:\/\//, '');
+        const destDir = extractDir.replace(/^file:\/\//, '');
+        await unzip(srcPath, destDir);
         await FileSystem.deleteAsync(result.uri, { idempotent: true });
         extractedFiles = await scanVideoFiles(extractDir);
 
         // Copy each extracted video into public Downloads/ZipSender/<title>/
         for (const f of extractedFiles) {
-          await copyToPublicDownloads(f.filePath, f.filename, sanitizeName(titleName));
+          const safUri = await copyToPublicDownloads(f.filePath, f.filename, sanitizeName(titleName));
+          if (safUri && !publicFolderUri) {
+            // Derive the parent folder SAF URI by stripping the file segment
+            publicFolderUri = safUri.replace(/\/[^/]+$/, '');
+          }
         }
       } else {
         const info = await FileSystem.getInfoAsync(destPath, { size: true });
@@ -226,7 +235,10 @@ export default function DownloadButton({ part, titleName }: Props) {
         extractedFiles = [{ filename, filePath: destPath, size: fileSize }];
 
         // Copy the single video into public Downloads/ZipSender/<title>/
-        await copyToPublicDownloads(destPath, filename, sanitizeName(titleName));
+        const safUri = await copyToPublicDownloads(destPath, filename, sanitizeName(titleName));
+        if (safUri) {
+          publicFolderUri = safUri.replace(/\/[^/]+$/, '');
+        }
       }
 
       const totalBytes = extractedFiles.reduce((s, f) => s + f.size, 0);
@@ -235,6 +247,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         titleName,
         filename,
         folderPath: folder,
+        publicFolderUri,
         size: part.size ?? (totalBytes > 0 ? formatBytes(totalBytes) : '—'),
         format: actualFormat === 'zip' ? 'zip' : 'video',
         downloadedAt: Date.now(),
