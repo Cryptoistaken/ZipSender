@@ -26,7 +26,6 @@ const PERMS_ASKED_KEY = "zipsender-perms-asked-v1";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// ── Ensure the app's private working directory exists ─────────────────────────
 async function ensureAppDir() {
   try {
     const dir = FileSystem.documentDirectory + "ZipSender/";
@@ -37,34 +36,19 @@ async function ensureAppDir() {
   } catch {}
 }
 
-// ── Request MANAGE_EXTERNAL_STORAGE via settings intent (Android 11+ / API 30+) ──
-// This permission cannot be requested via requestPermissionsAsync — it requires
-// the user to grant it from the system settings screen.
 async function requestManageStorageIfNeeded() {
   if (Platform.OS !== "android") return;
-  // Only required on API 30+ (Android 11+). minSdkVersion is 24 so we guard.
-  // There's no JS API to check MANAGE_EXTERNAL_STORAGE status; we just open
-  // the settings page and let the user decide. We do this only on first run.
   try {
     await IntentLauncher.startActivityAsync(
       "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
       { data: "package:com.zipsender.app" }
     );
-  } catch {
-    // Device doesn't support this intent (API < 30) — that's fine, skip
-  }
+  } catch {}
 }
 
-// ── Main permission request sequence ─────────────────────────────────────────
-// Runs once on first launch (guarded by AsyncStorage flag).
-// Request order:
-//   1. MediaLibrary — covers READ_MEDIA_VIDEO / READ_MEDIA_IMAGES / READ_MEDIA_AUDIO
-//      (Android 13+ granular) and READ/WRITE_EXTERNAL_STORAGE (Android < 10 implied)
-//   2. MANAGE_EXTERNAL_STORAGE — opens system settings on Android 11+
 async function requestAllPermissions() {
   if (Platform.OS !== "android") return;
 
-  // Guard: only ask once per install
   try {
     const already = await AsyncStorage.getItem(PERMS_ASKED_KEY);
     if (already === "true") return;
@@ -72,18 +56,14 @@ async function requestAllPermissions() {
 
   let anyDenied = false;
 
-  // Step 1: MediaLibrary — request granular media permissions (Android 13+)
-  // On older Android versions the granular array is ignored and the standard
-  // READ/WRITE_EXTERNAL_STORAGE grant is requested instead.
   try {
     const { status, canAskAgain } = await MediaLibrary.requestPermissionsAsync(
-      false, // writeOnly = false (we need read too)
-      ["video", "audio", "photo"] // granularPermissions — Android 13+ (API 33+)
+      false,
+      ["video", "audio", "photo"]
     );
     if (status !== "granted") {
       anyDenied = true;
       if (!canAskAgain) {
-        // User permanently denied — show settings link
         Alert.alert(
           "Storage Permission Required",
           "ZipSender needs media access to save and play downloaded videos.\n\nPlease enable it in App Settings → Permissions → Files and Media.",
@@ -98,9 +78,6 @@ async function requestAllPermissions() {
     }
   } catch {}
 
-  // Step 2: MANAGE_EXTERNAL_STORAGE — required to access arbitrary files
-  // outside the app sandbox on Android 11+. Opens the system settings page.
-  // We prompt the user first so they understand why the settings screen appears.
   if (!anyDenied) {
     await new Promise<void>((resolve) => {
       Alert.alert(
@@ -123,13 +100,11 @@ async function requestAllPermissions() {
     );
   }
 
-  // Mark as asked regardless of outcome
   try {
     await AsyncStorage.setItem(PERMS_ASKED_KEY, "true");
   } catch {}
 }
 
-// ── Root layout ───────────────────────────────────────────────────────────────
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Almarai_300Light,

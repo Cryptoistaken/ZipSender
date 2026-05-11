@@ -14,15 +14,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-/**
- * Fetch Google Drive file metadata without an API key.
- * Strategy (from gdrive-logic.md):
- *   1. Hit the usercontent download probe URL — for large files Google returns
- *      an HTML warning page that contains the filename and size.
- *   2. For small files Google redirects straight to the stream; fall back to
- *      Content-Disposition / Content-Length headers.
- *   3. Detect ZIP vs video by filename extension / Content-Type.
- */
 export const getFileMeta = action({
   args: { driveUrl: v.string() },
   handler: async (_ctx, { driveUrl }) => {
@@ -42,7 +33,6 @@ export const getFileMeta = action({
 
     const ct = mimeType?.toLowerCase() ?? "";
     if (ct.includes("text/html")) {
-      // Large file — Google returns HTML warning page with name + size
       const html = await res.text();
       const nameMatch = html.match(
         /class="uc-name-size"[^>]*>.*?<a[^>]*>([^<]+)<\/a>/s
@@ -51,7 +41,6 @@ export const getFileMeta = action({
       const sizeMatch = html.match(/\((\d+(?:\.\d+)?\s*(?:G|M|K|GB|MB|KB))\)/);
       if (sizeMatch) fileSize = sizeMatch[1].trim();
     } else {
-      // Small file — direct stream, parse headers
       const disposition = res.headers.get("content-disposition") ?? "";
       const nameFromHeader = disposition.match(/filename[^;=\n]*=([^;\n]*)/)?.[1];
       if (nameFromHeader) fileName = nameFromHeader.replace(/['"]/g, "").trim();

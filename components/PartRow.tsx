@@ -11,9 +11,7 @@ interface Props {
 
 export default function PartRow({ part, onDelete }: Props) {
   return (
-    // matches prototype .part-row
     <View style={styles.row}>
-      {/* Part icon — matches .part-icon */}
       <View style={styles.partIcon}>
         <MaterialCommunityIcons
           name={(part.format === 'zip' ? 'zip-box-outline' : 'film-outline') as any}
@@ -21,15 +19,12 @@ export default function PartRow({ part, onDelete }: Props) {
           color={Colors.cream50}
         />
       </View>
-
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{part.filename}</Text>
         {part.size ? (
           <Text style={styles.meta}>{part.size}</Text>
         ) : null}
       </View>
-
-      {/* Actions — matches .part-actions .part-btn */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.partBtn} onPress={onDelete} activeOpacity={0.7}>
           <MaterialCommunityIcons name="trash-can-outline" size={14} color={Colors.cream30} />
@@ -40,7 +35,6 @@ export default function PartRow({ part, onDelete }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // matches .part-row
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -51,7 +45,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.cream10,
   },
-  // matches .part-icon
   partIcon: {
     width: 26,
     height: 26,
@@ -77,7 +70,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   actions: { flexDirection: 'row', gap: 4 },
-  // matches .part-btn
   partBtn: {
     width: 26,
     height: 26,

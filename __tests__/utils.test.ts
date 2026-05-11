@@ -1,7 +1,3 @@
-// __tests__/utils.test.ts
-// Unit tests for the core logic functions in ZipSender.
-// These run in CI after every debug APK build.
-
 const DRIVE_ID_RE = /(?:\/d\/|[?&]id=)([a-zA-Z0-9_-]{25,})/;
 
 function parseFileId(raw: string): string {
@@ -23,8 +19,6 @@ function detectFormat(mimeType: string, name: string): 'zip' | 'video' {
   return isZip ? 'zip' : 'video';
 }
 
-// ── Drive URL parsing ─────────────────────────────────────────────────────────
-
 describe('parseFileId', () => {
   test('bare ID passes through', () => {
     const id = 'abc123XYZdef456GHIjkl789MN';
@@ -45,8 +39,6 @@ describe('parseFileId', () => {
     expect(parseFileId('https://example.com/file')).toBe('https://example.com/file');
   });
 });
-
-// ── Format detection (the main bug) ──────────────────────────────────────────
 
 describe('detectFormat', () => {
   test('zip mimeType → zip', () => {
@@ -73,8 +65,6 @@ describe('detectFormat', () => {
     expect(detectFormat('application/octet-stream', 'True.Beauty.S01E01.mkv')).toBe('video');
   });
 });
-
-// ── formatBytes ───────────────────────────────────────────────────────────────
 
 describe('formatBytes', () => {
   test('GB range', () => {

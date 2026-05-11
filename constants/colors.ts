@@ -1,7 +1,4 @@
-// ─── Design tokens — exact values from ZipSender_Design_Reference.md ─────────
-// Single palette: cream on dark, twelve opacities. Nothing is pure white.
 export const Colors = {
-  // Primary cream palette
   cream:   '#e1e0cc',
   cream80: 'rgba(225,224,204,0.8)',
   cream50: 'rgba(225,224,204,0.5)',
@@ -9,7 +6,6 @@ export const Colors = {
   cream20: 'rgba(225,224,204,0.2)',
   cream10: 'rgba(225,224,204,0.08)',
   cream05: 'rgba(225,224,204,0.04)',
-  // Backgrounds
   black:   '#000000',
   surface: '#101010',
   card:    '#181818',

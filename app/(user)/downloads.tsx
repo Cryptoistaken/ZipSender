@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from "react";
 import {
   ScrollView,
   View,
@@ -9,82 +9,81 @@ import {
   Animated,
   Platform,
   Linking,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as IntentLauncher from 'expo-intent-launcher';
-import StorageWidget from '../../components/StorageWidget';
-import { useDownloadsStore, DownloadedItem, ExtractedFile } from '../../store/downloads';
-import { deletePublicFolder } from '../../hooks/useSafDownloads';
-import { Colors } from '../../constants/colors';
-import { Fonts } from '../../constants/fonts';
-import { loadAdminUnlocked, saveAdminUnlocked } from '../../hooks/useSecretAdminTap';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as IntentLauncher from "expo-intent-launcher";
+import StorageWidget from "../../components/StorageWidget";
+import {
+  useDownloadsStore,
+  DownloadedItem,
+  ExtractedFile,
+} from "../../store/downloads";
+import { deletePublicFolder } from "../../hooks/useSafDownloads";
+import { Colors } from "../../constants/colors";
+import { Fonts } from "../../constants/fonts";
+import {
+  loadAdminUnlocked,
+  saveAdminUnlocked,
+} from "../../hooks/useSecretAdminTap";
 
-const VIDEO_EXT = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v'];
+const VIDEO_EXT = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"];
 
 function sanitizeName(name: string): string {
-  return name.replace(/[/\\:*?"<>|]/g, '_').trim();
+  return name.replace(/[/\\:*?"<>|]/g, "_").trim();
 }
 
 function formatBytes(bytes: number): string {
-  if (!bytes) return '';
-  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (!bytes) return "";
+  if (bytes >= 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// Opens the ZipSender album in the device's media/gallery app.
-// Files saved via MediaLibrary live in the media store (Videos), not a folder path.
-async function openFolder(_publicFolderUri?: string) {
-  try {
-    if (Platform.OS === 'android') {
-      // Open the Videos / Gallery section of the Files app
-      try {
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: 'content://media/external/video/media',
-          flags: 1,
-        });
-        return;
-      } catch {}
-      // Fallback: open generic Files app at root
-      try {
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: 'content://com.android.externalstorage.documents/root/primary',
-          flags: 1,
-        });
-        return;
-      } catch {}
-      // Last resort
-      try { await Linking.openURL('content://media/external/video/media'); } catch {}
-    }
-  } catch {}
+const TAG = "[Downloads]";
+
+const g = globalThis as any;
+if (g.__zsIntentActive === undefined) g.__zsIntentActive = false;
+
+function _releaseAfterDelay() {
+  if (g.__zsIntentTimer) clearTimeout(g.__zsIntentTimer);
+  g.__zsIntentTimer = setTimeout(() => {
+    g.__zsIntentActive = false;
+    g.__zsIntentTimer = undefined;
+  }, 1500);
 }
 
 async function playFile(filePath: string) {
+  if (g.__zsIntentActive) {
+    console.log(`${TAG} playFile skipped — intent active`);
+    return;
+  }
+  g.__zsIntentActive = true;
+  const decoded = decodeURIComponent(filePath);
+  const fileUri = decoded.startsWith("file://") ? decoded : `file://${decoded}`;
+  console.log(`${TAG} playFile → ${fileUri}`);
   try {
-    if (Platform.OS === 'android') {
-      const contentUri = await FileSystem.getContentUriAsync(filePath);
-      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+    if (Platform.OS === "android") {
+      const contentUri = await FileSystem.getContentUriAsync(fileUri);
+      console.log(`${TAG} contentUri → ${contentUri}`);
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
         data: contentUri,
-        flags: 1,
-        type: 'video/*',
+        flags: 268435457,
+        type: "video/*",
       });
     } else {
-      await Linking.openURL(filePath);
+      await Linking.openURL(fileUri);
     }
-  } catch {
-    try { await Linking.openURL(filePath); } catch {}
+  } catch (e: any) {
+    console.warn(`${TAG} playFile failed: ${e?.message ?? e}`);
+  } finally {
+    _releaseAfterDelay();
   }
 }
 
-// Strip file:// prefix so FileSystem.deleteAsync gets a plain path on Android
-function toFsPath(uri: string): string {
-  return uri.startsWith('file://') ? uri.slice(7) : uri;
-}
-
-// ── Delete confirmation modal ─────────────────────────────────────────────────
 interface DeleteModalProps {
   visible: boolean;
   title: string;
@@ -92,7 +91,12 @@ interface DeleteModalProps {
   onCancel: () => void;
 }
 
-function DeleteModal({ visible, title, onConfirm, onCancel }: DeleteModalProps) {
+function DeleteModal({
+  visible,
+  title,
+  onConfirm,
+  onCancel,
+}: DeleteModalProps) {
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -116,35 +120,44 @@ function DeleteModal({ visible, title, onConfirm, onCancel }: DeleteModalProps) 
 
   return (
     <Modal transparent animationType="none" onRequestClose={onCancel}>
-      {/* Backdrop */}
-      <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onCancel}>
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={onCancel}
+      >
         <Animated.View
-          style={[styles.modalSheet, { transform: [{ translateY: slideAnim }] }]}
+          style={[
+            styles.modalSheet,
+            { transform: [{ translateY: slideAnim }] },
+          ]}
         >
-          {/* drag handle */}
           <View style={styles.sheetHandle} />
-
-          {/* Icon */}
           <View style={styles.confirmIconBox}>
-            <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.cream50} />
+            <MaterialCommunityIcons
+              name="trash-can-outline"
+              size={22}
+              color={Colors.cream50}
+            />
           </View>
-
-          {/* Title */}
           <Text style={styles.confirmTitle}>Delete from device?</Text>
-
-          {/* Body */}
           <Text style={styles.confirmBody}>
-            This will permanently delete{' '}
-            <Text style={{ color: Colors.cream }}>{title}</Text>
-            {' '}and all its files from your device. This cannot be undone.
+            This will permanently delete{" "}
+            <Text style={{ color: Colors.cream }}>{title}</Text> and all its
+            files from your device. This cannot be undone.
           </Text>
-
-          {/* Buttons */}
           <View style={styles.confirmBtnRow}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={onCancel}
+              activeOpacity={0.8}
+            >
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.destructBtn} onPress={onConfirm} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.destructBtn}
+              onPress={onConfirm}
+              activeOpacity={0.8}
+            >
               <Text style={styles.destructBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
@@ -154,7 +167,6 @@ function DeleteModal({ visible, title, onConfirm, onCancel }: DeleteModalProps) 
   );
 }
 
-// ── Extracted file row ────────────────────────────────────────────────────────
 interface ExtractedRowProps {
   file: ExtractedFile;
   onDelete: () => void;
@@ -166,8 +178,15 @@ function ExtractedFileRow({ file, onDelete, isLast }: ExtractedRowProps) {
 
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteModal(false);
-    try { await FileSystem.deleteAsync(toFsPath(file.filePath), { idempotent: true }); } catch {}
     onDelete();
+    try {
+      const uri = file.filePath.startsWith("file://")
+        ? file.filePath
+        : `file://${file.filePath}`;
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch (e: any) {
+      console.warn(`${TAG} delete file failed: ${e?.message ?? e}`);
+    }
   }, [file.filePath, onDelete]);
 
   return (
@@ -180,18 +199,42 @@ function ExtractedFileRow({ file, onDelete, isLast }: ExtractedRowProps) {
       />
       <View style={[styles.extractedRow, !isLast && styles.extractedRowBorder]}>
         <View style={styles.extractedIcon}>
-          <MaterialCommunityIcons name="file-video-outline" size={13} color={Colors.cream50} />
+          <MaterialCommunityIcons
+            name="file-video-outline"
+            size={13}
+            color={Colors.cream50}
+          />
         </View>
         <View style={styles.extractedInfo}>
-          <Text style={styles.extractedName} numberOfLines={1}>{file.filename}</Text>
-          {file.size > 0 && <Text style={styles.extractedSize}>{formatBytes(file.size)}</Text>}
+          <Text style={styles.extractedName} numberOfLines={1}>
+            {file.filename}
+          </Text>
+          {file.size > 0 && (
+            <Text style={styles.extractedSize}>{formatBytes(file.size)}</Text>
+          )}
         </View>
         <View style={styles.extractedActions}>
-          <TouchableOpacity style={styles.extractedBtn} onPress={() => playFile(file.filePath)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="play" size={13} color={Colors.cream} />
+          <TouchableOpacity
+            style={styles.extractedBtn}
+            onPress={() => playFile(file.filePath)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="play"
+              size={13}
+              color={Colors.cream}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.extractedBtn} onPress={() => setShowDeleteModal(true)} activeOpacity={0.7}>
-            <MaterialCommunityIcons name="trash-can-outline" size={13} color={Colors.cream50} />
+          <TouchableOpacity
+            style={styles.extractedBtn}
+            onPress={() => setShowDeleteModal(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name="trash-can-outline"
+              size={13}
+              color={Colors.cream50}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -199,7 +242,6 @@ function ExtractedFileRow({ file, onDelete, isLast }: ExtractedRowProps) {
   );
 }
 
-// ── Download item card ────────────────────────────────────────────────────────
 interface DlCardProps {
   item: DownloadedItem;
   onDelete: () => void;
@@ -207,22 +249,29 @@ interface DlCardProps {
 
 function DlCard({ item, onDelete }: DlCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [localFiles, setLocalFiles] = useState<ExtractedFile[]>(item.extractedFiles ?? []);
+  const [localFiles, setLocalFiles] = useState<ExtractedFile[]>(
+    item.extractedFiles ?? [],
+  );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Refresh file list from disk when expanding
   const refreshFiles = useCallback(async (): Promise<ExtractedFile[]> => {
     try {
-      const extractDir = item.folderPath + 'extracted/';
-      const entries = await FileSystem.readDirectoryAsync(extractDir).catch(() => []);
+      const extractDir = item.folderPath + "extracted/";
+      const entries = await FileSystem.readDirectoryAsync(extractDir).catch(
+        () => [],
+      );
       const fresh: ExtractedFile[] = [];
       for (const entry of entries) {
         if (VIDEO_EXT.some((e) => entry.toLowerCase().endsWith(e))) {
           const fp = extractDir + entry;
           const info = await FileSystem.getInfoAsync(fp, { size: true });
           if (info.exists) {
-            fresh.push({ filename: entry, filePath: fp, size: (info as any).size ?? 0 });
+            fresh.push({
+              filename: entry,
+              filePath: fp,
+              size: (info as any).size ?? 0,
+            });
           }
         }
       }
@@ -233,7 +282,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
   }, [item]);
 
   const handleExpand = useCallback(async () => {
-    if (!expanded && item.format === 'zip') {
+    if (!expanded && item.format === "zip") {
       const fresh = await refreshFiles();
       setLocalFiles(fresh);
     }
@@ -244,34 +293,34 @@ function DlCard({ item, onDelete }: DlCardProps) {
     setLocalFiles((prev) => prev.filter((f) => f.filePath !== filePath));
   }, []);
 
-  // Delete files from disk AND remove the card
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteModal(false);
-    // 1. Delete the private app folder (documentDirectory)
-    try {
-      const fsPath = toFsPath(item.folderPath);
-      await FileSystem.deleteAsync(fsPath, { idempotent: true });
-    } catch {}
-    // 2. Delete the public Downloads/ZipSender/<title>/ folder via SAF
-    try {
-      await deletePublicFolder(sanitizeName(item.titleName));
-    } catch {}
-    // 3. Animate card out, then remove from store
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => onDelete());
+    }).start();
+    onDelete();
+    try {
+      const folder = item.folderPath.startsWith("file://")
+        ? item.folderPath
+        : `file://${item.folderPath}`;
+      await FileSystem.deleteAsync(folder, { idempotent: true });
+    } catch (e: any) {
+      console.warn(`${TAG} delete folder failed: ${e?.message ?? e}`);
+    }
+    try {
+      await deletePublicFolder(sanitizeName(item.titleName));
+    } catch {}
   }, [item.folderPath, item.titleName, fadeAnim, onDelete]);
 
-  const isZip = item.format === 'zip';
+  const isZip = item.format === "zip";
   const fileCount = localFiles.length;
-  // Single-video zip: skip the dropdown, render inline play instead
   const isSingleVideoZip = isZip && fileCount === 1;
 
   const folderLabel = item.folderPath
-    .replace(FileSystem.documentDirectory ?? '', 'ZipSender/')
-    .replace(/\/$/, '');
+    .replace(FileSystem.documentDirectory ?? "", "ZipSender/")
+    .replace(/\/$/, "");
 
   return (
     <>
@@ -282,54 +331,57 @@ function DlCard({ item, onDelete }: DlCardProps) {
         onCancel={() => setShowDeleteModal(false)}
       />
       <Animated.View style={[styles.dlCard, { opacity: fadeAnim }]}>
-
-        {/*
-          ── Card header ──────────────────────────────────────────────────────
-          The whole header is a TouchableOpacity for multi-video zips so tapping
-          anywhere on the body expands the list. For single-video zips and plain
-          videos the header is non-interactive (action buttons handle taps).
-        */}
         <TouchableOpacity
           activeOpacity={isZip && !isSingleVideoZip ? 0.7 : 1}
           onPress={isZip && !isSingleVideoZip ? handleExpand : undefined}
           style={styles.dlCardHeader}
         >
-          {/* Thumb icon */}
           <View style={styles.dlThumb}>
             <MaterialCommunityIcons
-              name={isZip ? 'zip-box-outline' : 'file-video-outline'}
+              name={isZip ? "zip-box-outline" : "file-video-outline"}
               size={20}
               color={Colors.cream50}
             />
           </View>
-
-          {/* Info */}
           <View style={styles.dlInfo}>
             <View style={styles.dlBadgeRow}>
-              <View style={[styles.dlBadge, isZip ? styles.badgeZip : styles.badgeMp4]}>
-                <Text style={[styles.dlBadgeText, isZip ? styles.badgeZipText : styles.badgeMp4Text]}>
-                  {isZip ? 'ZIP' : 'MP4'}
+              <View
+                style={[
+                  styles.dlBadge,
+                  isZip ? styles.badgeZip : styles.badgeMp4,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dlBadgeText,
+                    isZip ? styles.badgeZipText : styles.badgeMp4Text,
+                  ]}
+                >
+                  {isZip ? "ZIP" : "MP4"}
                 </Text>
               </View>
             </View>
-            <Text style={styles.dlTitle} numberOfLines={1}>{item.titleName}</Text>
+            <Text style={styles.dlTitle} numberOfLines={1}>
+              {item.titleName}
+            </Text>
             <Text style={styles.dlSub} numberOfLines={1}>
               {isZip
-                ? `${fileCount} video${fileCount !== 1 ? 's' : ''} · ${item.size}`
+                ? `${fileCount} video${fileCount !== 1 ? "s" : ""} · ${item.size}`
                 : item.size}
             </Text>
           </View>
-
-          {/* Action buttons — stop propagation so they don't also trigger expand */}
           <View style={styles.dlActions}>
-            {/* Play — plain video or single-video zip */}
-            {(!isZip && localFiles.length > 0) && (
+            {!isZip && localFiles.length > 0 && (
               <TouchableOpacity
                 style={styles.dlBtn}
                 onPress={() => playFile(localFiles[0].filePath)}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="play" size={16} color={Colors.cream} />
+                <MaterialCommunityIcons
+                  name="play"
+                  size={16}
+                  color={Colors.cream}
+                />
               </TouchableOpacity>
             )}
             {isSingleVideoZip && (
@@ -338,52 +390,52 @@ function DlCard({ item, onDelete }: DlCardProps) {
                 onPress={() => playFile(localFiles[0].filePath)}
                 activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="play" size={16} color={Colors.cream} />
+                <MaterialCommunityIcons
+                  name="play"
+                  size={16}
+                  color={Colors.cream}
+                />
               </TouchableOpacity>
             )}
-            {/* Chevron for multi-video zips (visual affordance; full card is tappable) */}
             {isZip && !isSingleVideoZip && (
               <View style={styles.dlBtn} pointerEvents="none">
                 <MaterialCommunityIcons
-                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  name={expanded ? "chevron-up" : "chevron-down"}
                   size={17}
                   color={Colors.cream}
                 />
               </View>
             )}
-
-            {/* Open folder */}
-            <TouchableOpacity
-              style={styles.dlBtn}
-              onPress={() => openFolder(item.publicFolderUri)}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name="folder-open-outline" size={16} color={Colors.cream50} />
-            </TouchableOpacity>
-
-            {/* Delete */}
             <TouchableOpacity
               style={styles.dlBtn}
               onPress={() => setShowDeleteModal(true)}
               activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.cream50} />
+              <MaterialCommunityIcons
+                name="trash-can-outline"
+                size={16}
+                color={Colors.cream50}
+              />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-
-        {/* Folder path hint */}
         <View style={styles.dlPathRow}>
-          <MaterialCommunityIcons name="folder-outline" size={11} color={Colors.cream30} />
-          <Text style={styles.dlPath} numberOfLines={1}>{folderLabel}</Text>
+          <MaterialCommunityIcons
+            name="folder-outline"
+            size={11}
+            color={Colors.cream30}
+          />
+          <Text style={styles.dlPath} numberOfLines={1}>
+            {folderLabel}
+          </Text>
         </View>
-
-        {/* Expanded extracted files — only for multi-video zips */}
         {isZip && !isSingleVideoZip && expanded && (
           <View style={styles.extractedList}>
             {localFiles.length === 0 ? (
               <View style={styles.extractedEmpty}>
-                <Text style={styles.extractedEmptyText}>No video files found</Text>
+                <Text style={styles.extractedEmptyText}>
+                  No video files found
+                </Text>
               </View>
             ) : (
               localFiles.map((f, i) => (
@@ -402,13 +454,14 @@ function DlCard({ item, onDelete }: DlCardProps) {
   );
 }
 
-// ── Screen ────────────────────────────────────────────────────────────────────
 export default function DownloadsScreen() {
   const { items, remove } = useDownloadsStore();
   const [adminUnlocked, setAdminUnlocked] = useState(false);
 
   useEffect(() => {
-    loadAdminUnlocked().then((val) => { if (val) setAdminUnlocked(true); });
+    loadAdminUnlocked().then((val) => {
+      if (val) setAdminUnlocked(true);
+    });
   }, []);
 
   const handleAdminUnlock = useCallback(() => {
@@ -417,40 +470,47 @@ export default function DownloadsScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.container}>
-        {/* Page header */}
         <View style={styles.header}>
           <Text style={styles.pageTitle}>Downloads</Text>
           <Text style={styles.pageSub}>
             {items.length > 0
-              ? `${items.length} title${items.length !== 1 ? 's' : ''} · saved to app storage`
-              : 'Nothing downloaded yet'}
+              ? `${items.length} title${items.length !== 1 ? "s" : ""} · saved to app storage`
+              : "Nothing downloaded yet"}
           </Text>
         </View>
-
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <StorageWidget onUnlock={handleAdminUnlock} adminUnlocked={adminUnlocked} />
-
+          <StorageWidget
+            onUnlock={handleAdminUnlock}
+            adminUnlocked={adminUnlocked}
+          />
           {adminUnlocked && (
             <TouchableOpacity
               style={styles.adminButton}
-              onPress={() => router.push('/(admin)')}
+              onPress={() => router.push("/(admin)")}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="shield-crown" size={16} color={Colors.surface} />
+              <MaterialCommunityIcons
+                name="shield-crown"
+                size={16}
+                color={Colors.surface}
+              />
               <Text style={styles.adminButtonText}>Admin Panel</Text>
             </TouchableOpacity>
           )}
-
           {items.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <MaterialCommunityIcons name="tray-arrow-down" size={28} color={Colors.cream30} />
+                <MaterialCommunityIcons
+                  name="tray-arrow-down"
+                  size={28}
+                  color={Colors.cream30}
+                />
               </View>
               <Text style={styles.emptyTitle}>Nothing downloaded yet</Text>
               <Text style={styles.emptySub}>
@@ -459,7 +519,11 @@ export default function DownloadsScreen() {
             </View>
           ) : (
             items.map((item) => (
-              <DlCard key={item.id} item={item} onDelete={() => remove(item.id)} />
+              <DlCard
+                key={item.id}
+                item={item}
+                onDelete={() => remove(item.id)}
+              />
             ))
           )}
         </ScrollView>
@@ -471,7 +535,12 @@ export default function DownloadsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
-  header: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 14, flexShrink: 0 },
+  header: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 14,
+    flexShrink: 0,
+  },
   pageTitle: {
     fontFamily: Fonts.extraBold,
     fontSize: 22,
@@ -487,130 +556,176 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 8, paddingBottom: 100 },
-
   adminButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     backgroundColor: Colors.cream,
     borderRadius: 11,
     paddingVertical: 11,
     marginBottom: 4,
   },
-  adminButtonText: { fontFamily: Fonts.bold, fontSize: 13, color: Colors.surface },
-
-  // ── Empty state ─────────────────────────────────────────────────────────
-  emptyState: { alignItems: 'center', gap: 10, paddingTop: 40, paddingHorizontal: 24 },
+  adminButtonText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.surface,
+  },
+  emptyState: {
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 40,
+    paddingHorizontal: 24,
+  },
   emptyIcon: {
-    width: 58, height: 58, borderRadius: 18,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   emptyTitle: {
-    fontFamily: Fonts.extraBold, fontSize: 15, color: Colors.cream,
+    fontFamily: Fonts.extraBold,
+    fontSize: 15,
+    color: Colors.cream,
     letterSpacing: -0.03 * 15,
   },
   emptySub: {
-    fontFamily: Fonts.light, fontSize: 12, color: Colors.cream50,
-    lineHeight: 18, textAlign: 'center',
+    fontFamily: Fonts.light,
+    fontSize: 12,
+    color: Colors.cream50,
+    lineHeight: 18,
+    textAlign: "center",
   },
-
-  // ── Download card ────────────────────────────────────────────────────────
   dlCard: {
     backgroundColor: Colors.card2,
     borderWidth: 1,
     borderColor: Colors.cream10,
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 20,
+    overflow: "hidden",
   },
   dlCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
     paddingRight: 10,
   },
   dlThumb: {
-    width: 48, height: 48, borderRadius: 10,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   dlInfo: { flex: 1, minWidth: 0, gap: 2 },
-  dlBadgeRow: { flexDirection: 'row', gap: 5, marginBottom: 2 },
-  dlBadge: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1 },
+  dlBadgeRow: { flexDirection: "row", gap: 5, marginBottom: 1 },
+  dlBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
   dlBadgeText: {
-    fontFamily: Fonts.bold, fontSize: 8,
-    letterSpacing: 0.8, textTransform: 'uppercase',
+    fontFamily: Fonts.bold,
+    fontSize: 8,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
   badgeZip: { backgroundColor: Colors.cream10, borderColor: Colors.cream20 },
   badgeZipText: { color: Colors.cream80 },
   badgeMp4: { backgroundColor: Colors.cream20, borderColor: Colors.cream30 },
   badgeMp4Text: { color: Colors.cream },
   dlTitle: {
-    fontFamily: Fonts.bold, fontSize: 13, color: Colors.cream,
-    letterSpacing: -0.02 * 13,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: Colors.cream,
+    letterSpacing: -0.02 * 14,
   },
-  dlSub: { fontFamily: Fonts.light, fontSize: 10, color: Colors.cream50 },
-  dlActions: { flexDirection: 'row', gap: 5, flexShrink: 0 },
+  dlSub: { fontFamily: Fonts.light, fontSize: 11, color: Colors.cream50 },
+  dlActions: { flexDirection: "row", gap: 5, flexShrink: 0 },
   dlBtn: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  // Folder path hint
-  dlPathRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    marginTop: -4,
-  },
-  dlPath: {
-    fontFamily: Fonts.light,
-    fontSize: 9,
-    color: Colors.cream30,
-    flex: 1,
-    letterSpacing: 0.01 * 9,
-  },
-
-  // ── Extracted files list ─────────────────────────────────────────────────
+  dlPathRow: { display: "none" },
+  dlPath: { display: "none" },
   extractedList: { borderTopWidth: 1, borderTopColor: Colors.cream10 },
-  extractedEmpty: { padding: 14, alignItems: 'center' },
-  extractedEmptyText: { fontFamily: Fonts.light, fontSize: 11, color: Colors.cream30 },
-  extractedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 9, paddingHorizontal: 13, paddingLeft: 16,
+  extractedEmpty: { padding: 14, alignItems: "center" },
+  extractedEmptyText: {
+    fontFamily: Fonts.light,
+    fontSize: 11,
+    color: Colors.cream30,
   },
-  extractedRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.cream10 },
+  extractedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    paddingLeft: 16,
+  },
+  extractedRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cream10,
+  },
   extractedIcon: {
-    width: 26, height: 26, borderRadius: 7,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   extractedInfo: { flex: 1, minWidth: 0 },
   extractedName: {
-    fontFamily: Fonts.bold, fontSize: 11, color: Colors.cream,
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.cream,
     letterSpacing: -0.01 * 11,
   },
-  extractedSize: { fontFamily: Fonts.light, fontSize: 10, color: Colors.cream50, marginTop: 1 },
-  extractedActions: { flexDirection: 'row', gap: 4, flexShrink: 0 },
-  extractedBtn: {
-    width: 26, height: 26, borderRadius: 7,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center',
+  extractedSize: {
+    fontFamily: Fonts.light,
+    fontSize: 10,
+    color: Colors.cream50,
+    marginTop: 1,
   },
-
-  // ── Delete confirmation modal ────────────────────────────────────────────
+  extractedActions: { flexDirection: "row", gap: 4, flexShrink: 0 },
+  extractedBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
@@ -619,15 +734,22 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   sheetHandle: {
-    width: 36, height: 4, borderRadius: 2,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.cream20,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 20,
   },
   confirmIconBox: {
-    width: 44, height: 44, borderRadius: 14,
-    backgroundColor: Colors.cream10, borderWidth: 1, borderColor: Colors.cream20,
-    alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 14,
   },
   confirmTitle: {
@@ -644,17 +766,30 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 20,
   },
-  confirmBtnRow: { flexDirection: 'row', gap: 8 },
+  confirmBtnRow: { flexDirection: "row", gap: 8 },
   cancelBtn: {
-    backgroundColor: Colors.cream10, borderRadius: 11,
-    paddingVertical: 11, paddingHorizontal: 18,
+    backgroundColor: Colors.cream10,
+    borderRadius: 11,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
   },
-  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: Colors.cream80 },
+  cancelBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.cream80,
+  },
   destructBtn: {
-    flex: 1, backgroundColor: Colors.cream20,
-    borderRadius: 11, paddingVertical: 11,
-    borderWidth: 1, borderColor: Colors.cream30,
-    alignItems: 'center',
+    flex: 1,
+    backgroundColor: Colors.cream20,
+    borderRadius: 11,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: Colors.cream30,
+    alignItems: "center",
   },
-  destructBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: Colors.cream },
+  destructBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.cream,
+  },
 });

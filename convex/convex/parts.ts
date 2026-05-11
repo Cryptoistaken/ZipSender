@@ -2,12 +2,6 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { fileFormatValidator } from "./schema";
 
-// ─── Queries ──────────────────────────────────────────────────────────────────
-
-/**
- * Get all parts for a title, ordered by their display order.
- * Used by User home cards and Admin part-list rows.
- */
 export const listByTitle = query({
   args: { titleId: v.id("titles") },
   handler: async (ctx, { titleId }) => {
@@ -19,9 +13,6 @@ export const listByTitle = query({
   },
 });
 
-/**
- * Get a single part (needed when building the download URL on-device).
- */
 export const get = query({
   args: { partId: v.id("parts") },
   handler: async (ctx, { partId }) => {
@@ -29,14 +20,6 @@ export const get = query({
   },
 });
 
-// ─── Mutations ────────────────────────────────────────────────────────────────
-
-/**
- * Add a file to an existing title.
- * Used by:
- *  - "Add file URL" rows inside the "Publish new title" sheet
- *  - "Add file" (add-part) sheet
- */
 export const add = mutation({
   args: {
     titleId: v.id("titles"),
@@ -48,7 +31,6 @@ export const add = mutation({
     size: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Determine next order index
     const existing = await ctx.db
       .query("parts")
       .withIndex("by_title", (q) => q.eq("titleId", args.titleId))
@@ -57,7 +39,6 @@ export const add = mutation({
 
     const partId = await ctx.db.insert("parts", { ...args, order });
 
-    // Update partCount on the parent title
     const title = await ctx.db.get(args.titleId);
     if (title) {
       await ctx.db.patch(args.titleId, { partCount: order + 1 });
@@ -67,10 +48,6 @@ export const add = mutation({
   },
 });
 
-/**
- * Update label / filename / driveUrl / size of an existing part
- * (Admin "Edit part" — future screen).
- */
 export const update = mutation({
   args: {
     partId: v.id("parts"),
@@ -82,7 +59,6 @@ export const update = mutation({
     size: v.optional(v.string()),
   },
   handler: async (ctx, { partId, ...patch }) => {
-    // Strip undefined fields so we don't accidentally null them out
     const clean = Object.fromEntries(
       Object.entries(patch).filter(([, val]) => val !== undefined),
     );
@@ -90,10 +66,6 @@ export const update = mutation({
   },
 });
 
-/**
- * Remove a part from a title (Admin part-row delete → confirm sheet → Remove).
- * After deletion we re-sequence the remaining parts' order values.
- */
 export const remove = mutation({
   args: { partId: v.id("parts") },
   handler: async (ctx, { partId }) => {
@@ -102,7 +74,6 @@ export const remove = mutation({
 
     await ctx.db.delete(partId);
 
-    // Re-sequence siblings so order is contiguous
     const siblings = await ctx.db
       .query("parts")
       .withIndex("by_title_and_order", (q) => q.eq("titleId", part.titleId))
@@ -113,7 +84,6 @@ export const remove = mutation({
       siblings.map((s, i) => ctx.db.patch(s._id, { order: i })),
     );
 
-    // Update parent partCount
     const title = await ctx.db.get(part.titleId);
     if (title) {
       await ctx.db.patch(part.titleId, { partCount: siblings.length });
@@ -121,10 +91,6 @@ export const remove = mutation({
   },
 });
 
-/**
- * Reorder parts within a title (drag-and-drop — future feature).
- * Pass the full ordered array of part IDs.
- */
 export const reorder = mutation({
   args: {
     titleId: v.id("titles"),

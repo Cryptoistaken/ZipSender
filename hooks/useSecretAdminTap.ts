@@ -5,7 +5,6 @@ const TAP_TARGET = 20;
 const WINDOW_MS = 4000;
 const STORAGE_KEY = 'zipsender-admin-unlocked';
 
-// Persist admin state so it survives app restarts
 export async function loadAdminUnlocked(): Promise<boolean> {
   try {
     const val = await AsyncStorage.getItem(STORAGE_KEY);
@@ -21,7 +20,6 @@ export async function saveAdminUnlocked(value: boolean): Promise<void> {
   } catch {}
 }
 
-// Hook — no visible counter exposed
 export function useSecretAdminTap(onUnlock: () => void, alreadyUnlocked: boolean) {
   const tapsRef = useRef<number[]>([]);
 

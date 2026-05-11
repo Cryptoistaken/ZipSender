@@ -32,7 +32,6 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
         setFreeBytes(free);
         setTotalBytes(total);
       } catch {
-        // Fallback — 64 GB total, 38.4 GB used (prototype defaults)
         const total = 64 * 1024 ** 3;
         setTotalBytes(total);
         setFreeBytes(Math.round(total * 0.4));
@@ -43,7 +42,6 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
   const used = totalBytes && freeBytes ? totalBytes - freeBytes : null;
   const usedPct = totalBytes && used ? Math.min(used / totalBytes, 1) : 0.6;
 
-  // Animate bar width on mount — matches prototype rAF + 120ms setTimeout
   useEffect(() => {
     const t = setTimeout(() => {
       Animated.timing(barAnim, {
@@ -62,7 +60,6 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
 
   return (
     <TouchableOpacity style={styles.widget} onPress={handleTap} activeOpacity={0.9}>
-      {/* Top row: label + total */}
       <View style={styles.topRow}>
         <View style={styles.labelRow}>
           <MaterialCommunityIcons name="server" size={13} color={Colors.cream50} />
@@ -72,13 +69,9 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
           {totalBytes ? formatGB(totalBytes) : '64.0 GB'}
         </Text>
       </View>
-
-      {/* Animated bar — matches .storage-bar: 6px height, 999px radius */}
       <View style={styles.track}>
         <Animated.View style={[styles.fill, { width: barWidth as any }]} />
       </View>
-
-      {/* Legend row — used dot (cream) + free dot (cream20) */}
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, styles.legendDotUsed]} />
@@ -101,21 +94,17 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // .storage-widget — card2 bg, cream10 border, 20px radius, padding 14 16 13
   widget: {
     marginBottom: 14,
     backgroundColor: Colors.card2,
     borderWidth: 1,
     borderColor: Colors.cream10,
-    borderRadius: 20,
+    borderRadius: 18,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 13,
-    flexShrink: 0,
     gap: 11,
   },
-
-  // Top row: STORAGE label + total value
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -126,7 +115,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
-  // .storage-label — 9px 700 0.14em uppercase cream50
   storageLabel: {
     fontFamily: Fonts.bold,
     fontSize: 9,
@@ -134,22 +122,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: Colors.cream50,
   },
-  // .storage-total — 11px 700 -0.01em cream
   totalText: {
     fontFamily: Fonts.bold,
     fontSize: 11,
     letterSpacing: -0.01 * 11,
     color: Colors.cream,
   },
-
-  // .storage-bar — 6px height, 999px radius, cream10 bg
   track: {
     height: 6,
     borderRadius: 999,
     backgroundColor: Colors.cream10,
     overflow: 'hidden',
   },
-  // .storage-bar-used — cream fill, left-rounded (right corners flush)
   fill: {
     height: '100%',
     backgroundColor: Colors.cream,
@@ -158,8 +142,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
   },
-
-  // Legend row — gap: 14px
   legendRow: {
     flexDirection: 'row',
     gap: 14,
@@ -170,7 +152,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
   },
-  // 6×6 dots
   legendDot: {
     width: 6,
     height: 6,
@@ -182,14 +163,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cream30,
   },
-  // .storage-legend-text — 10px 300 cream50 0.01em
   legendText: {
     fontFamily: Fonts.light,
     fontSize: 10,
     color: Colors.cream50,
     letterSpacing: 0.01 * 10,
   },
-  // .storage-legend-value — 10px 700 cream80
   legendValue: {
     fontFamily: Fonts.bold,
     fontSize: 10,

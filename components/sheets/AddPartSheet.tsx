@@ -49,7 +49,6 @@ export default function AddPartSheet({ titleId, onClose }: Props) {
       if (meta.size) setSize(meta.size);
       if (meta.name) setResolvedName(meta.name);
     } catch {
-      // ignore — admin can set manually
     } finally {
       setFetching(false);
     }

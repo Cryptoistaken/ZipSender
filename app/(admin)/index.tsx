@@ -49,9 +49,6 @@ export default function AdminScreen() {
     bottomSheetRef.current?.expand();
   }, []);
 
-  // Only reset state here — sheet closure itself is handled by enablePanDownToClose
-  // or by the imperative .close() call from outside. Calling .close() inside onClose
-  // would double-close the already-closing sheet.
   const closeSheet = useCallback(() => {
     bottomSheetRef.current?.close();
     setTimeout(() => setSheet({ type: 'none' }), 300);
@@ -101,7 +98,6 @@ export default function AdminScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
-        {/* Admin header with back button */}
         <View style={styles.adminHeader}>
           <View style={styles.adminHeaderTop}>
             <TouchableOpacity
@@ -120,8 +116,6 @@ export default function AdminScreen() {
               <Text style={styles.adminSub}>Manage catalog titles and files</Text>
             </View>
           </View>
-
-          {/* Filter pills */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -149,7 +143,6 @@ export default function AdminScreen() {
             ))}
           </ScrollView>
         </View>
-
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -194,8 +187,6 @@ export default function AdminScreen() {
             ))
           )}
         </ScrollView>
-
-        {/* FAB */}
         <TouchableOpacity
           style={styles.fab}
           onPress={() => openSheet({ type: 'addSeries' })}
@@ -203,8 +194,6 @@ export default function AdminScreen() {
         >
           <MaterialCommunityIcons name="plus" size={26} color={Colors.surface} />
         </TouchableOpacity>
-
-        {/* Bottom sheet */}
         <BottomSheet
           ref={bottomSheetRef}
           index={-1}
@@ -224,7 +213,6 @@ export default function AdminScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
-
   adminHeader: {
     paddingTop: 6,
     paddingHorizontal: 16,
@@ -264,7 +252,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.02 * 11,
     marginTop: 1,
   },
-
   filterRow: {
     flexDirection: 'row',
     gap: 6,
@@ -290,10 +277,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   filterPillTextActive: { color: Colors.black },
-
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 10, paddingBottom: 100 },
-
   loadingText: {
     fontFamily: Fonts.regular,
     fontSize: 14,
@@ -312,8 +297,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.cream30,
   },
-
-  // matches prototype .fab — 48px, cream glow
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -330,7 +313,6 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
   },
-  // matches prototype .sheet background: #1a1a1a (slightly lighter than card2 #1e1e1e)
   sheetBg: { backgroundColor: '#1a1a1a' },
   sheetHandle: { backgroundColor: Colors.cream20, width: 36, height: 4, borderRadius: 2 },
 });

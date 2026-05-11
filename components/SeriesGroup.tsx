@@ -26,12 +26,9 @@ export default function SeriesGroup({
   onDeletePart,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
-  // Fix: use explicit annotation instead of `as` cast — the cast caused
-  // "type instantiation is excessively deep and possibly infinite" (TS2589).
   const partsResult = useQuery(api.parts.listByTitle, { titleId: title._id });
   const parts: Doc<'parts'>[] | undefined = partsResult ?? undefined;
 
-  // Client-side format filter
   const visible =
     formatFilter === 'all'
       ? true
@@ -42,17 +39,12 @@ export default function SeriesGroup({
   const icon = title.type === 'series' ? 'playlist-play' : 'video-outline';
 
   return (
-    // matches prototype .series-group
     <View style={styles.group}>
-      {/* Header row — matches .series-header */}
       <View style={styles.header}>
-        {/* Type icon box — matches .series-type-icon */}
         <View style={styles.typeIcon}>
           <MaterialCommunityIcons name={icon} size={20} color={Colors.cream50} />
         </View>
-
         <View style={styles.info}>
-          {/* Badges */}
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -66,8 +58,6 @@ export default function SeriesGroup({
             {title.totalSize ? ' · ' + title.totalSize : ''}
           </Text>
         </View>
-
-        {/* Action buttons — matches .series-actions .icon-btn */}
         <View style={styles.actions}>
           <TouchableOpacity style={styles.iconBtn} onPress={onAddPart} activeOpacity={0.7}>
             <MaterialCommunityIcons name="plus" size={16} color={Colors.cream50} />
@@ -80,8 +70,6 @@ export default function SeriesGroup({
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Part list — collapsible */}
       {parts !== undefined && parts.length > 0 && (
         <>
           <TouchableOpacity
@@ -98,9 +86,7 @@ export default function SeriesGroup({
               color={Colors.cream30}
             />
           </TouchableOpacity>
-
           {expanded && (
-            // matches .part-list
             <View style={styles.partList}>
               {parts.map((part: Doc<'parts'>) => (
                 <PartRow
@@ -109,7 +95,6 @@ export default function SeriesGroup({
                   onDelete={() => onDeletePart(part._id, part.filename)}
                 />
               ))}
-              {/* matches .add-part-row */}
               <TouchableOpacity style={styles.addPartRow} onPress={onAddPart} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="plus" size={14} color={Colors.cream} />
                 <Text style={styles.addPartLabel}>Add another file…</Text>
@@ -123,7 +108,6 @@ export default function SeriesGroup({
 }
 
 const styles = StyleSheet.create({
-  // matches .series-group
   group: {
     backgroundColor: Colors.card2,
     borderWidth: 1,
@@ -131,7 +115,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
-  // matches .series-header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -139,7 +122,6 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingRight: 13,
   },
-  // matches .series-type-icon
   typeIcon: {
     width: 40,
     height: 40,
@@ -180,9 +162,7 @@ const styles = StyleSheet.create({
     color: Colors.cream50,
     marginTop: 1,
   },
-  // matches .series-actions
   actions: { flexDirection: 'row', gap: 5, flexShrink: 0 },
-  // matches .icon-btn
   iconBtn: {
     width: 30,
     height: 30,
@@ -194,7 +174,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnDanger: {},
-
   expandRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,14 +188,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.cream30,
   },
-
-  // matches .part-list
   partList: {
     borderTopWidth: 1,
     borderTopColor: Colors.cream10,
   },
-
-  // matches .add-part-row
   addPartRow: {
     flexDirection: 'row',
     alignItems: 'center',

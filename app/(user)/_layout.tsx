@@ -5,7 +5,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 
-// Custom tab bar icon with active dot indicator — matches .nav-dot in prototype
 function NavIcon({
   name,
   color,
@@ -17,20 +16,22 @@ function NavIcon({
 }) {
   return (
     <View style={navStyles.wrap}>
+      {focused && <View style={navStyles.indicator} />}
       <MaterialCommunityIcons name={name} size={21} color={color} />
-      {focused && <View style={navStyles.dot} />}
     </View>
   );
 }
 
 const navStyles = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 2 },
-  // .nav-dot — 4×4 circle, cream bg, radius 50%
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.cream,
+  wrap: { alignItems: 'center', justifyContent: 'center', width: 44, height: 32 },
+  indicator: {
+    position: 'absolute',
+    width: 44,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: Colors.cream10,
+    borderWidth: 1,
+    borderColor: Colors.cream20,
   },
 });
 
@@ -41,27 +42,25 @@ export default function UserLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            // Matches prototype: rgba(10,10,10,0.92) + blur + 22px radius
-            backgroundColor: 'rgba(10,10,10,0.92)',
+            backgroundColor: 'rgba(12,12,12,0.96)',
             borderTopWidth: 0,
             position: 'absolute',
-            bottom: 18,
-            left: 14,
-            right: 14,
-            borderRadius: 22,
-            height: 62,
+            bottom: 16,
+            left: 12,
+            right: 12,
+            borderRadius: 20,
+            height: 64,
             borderWidth: 1,
             borderColor: Colors.cream10,
-            elevation: 20,
-            // iOS frosted glass shadow
+            elevation: 24,
             shadowColor: '#000',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.4,
-            shadowRadius: 24,
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.5,
+            shadowRadius: 28,
           },
           tabBarItemStyle: {
-            paddingVertical: 9,
-            paddingBottom: 10,
+            paddingVertical: 10,
+            paddingBottom: 11,
           },
           tabBarActiveTintColor: Colors.cream,
           tabBarInactiveTintColor: Colors.cream50,
