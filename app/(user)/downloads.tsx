@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+﻿import { useCallback, useState, useEffect, useRef } from "react";
 import {
   ScrollView,
   View,
@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   Linking,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -45,23 +46,24 @@ function formatBytes(bytes: number): string {
 
 const TAG = "[Downloads]";
 
-const g = globalThis as any;
-if (g.__zsIntentActive === undefined) g.__zsIntentActive = false;
+let _intentActive = false;
 
-function _releaseAfterDelay() {
-  if (g.__zsIntentTimer) clearTimeout(g.__zsIntentTimer);
-  g.__zsIntentTimer = setTimeout(() => {
-    g.__zsIntentActive = false;
-    g.__zsIntentTimer = undefined;
-  }, 1500);
-}
+// When user presses back in the video player, the intent closes without
+// resolving our promise. AppState going "active" is the reliable signal
+// that the external activity is gone — reset the lock here.
+AppState.addEventListener("change", (state) => {
+  if (state === "active" && _intentActive) {
+    _intentActive = false;
+    console.log(`${TAG} AppState active — intent lock reset`);
+  }
+});
 
 async function playFile(filePath: string) {
-  if (g.__zsIntentActive) {
+  if (_intentActive) {
     console.log(`${TAG} playFile skipped — intent active`);
     return;
   }
-  g.__zsIntentActive = true;
+  _intentActive = true;
   const decoded = decodeURIComponent(filePath);
   const fileUri = decoded.startsWith("file://") ? decoded : `file://${decoded}`;
   console.log(`${TAG} playFile → ${fileUri}`);
@@ -80,7 +82,7 @@ async function playFile(filePath: string) {
   } catch (e: any) {
     console.warn(`${TAG} playFile failed: ${e?.message ?? e}`);
   } finally {
-    _releaseAfterDelay();
+    _intentActive = false;
   }
 }
 
