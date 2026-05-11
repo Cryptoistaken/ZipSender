@@ -132,7 +132,7 @@ export default function DownloadButton({ part, titleName }: Props) {
     const downloaded = items.some((i) => i.id === part._id);
     if (!downloaded && state === 'done') setState('idle');
     if (downloaded && state === 'idle') setState('done');
-  }, [items, part._id]);
+  }, [items, part._id, state]);
 
   useEffect(() => {
     if (state === 'downloading') {
