@@ -124,12 +124,41 @@ export async function copyToPublicDownloads(
   }
 
   try {
-    // 3. Create MediaLibrary asset from the private file
-    // createAssetAsync accepts a file:// URI
+    // 3. MediaLibrary.createAssetAsync cannot read from the app's private
+    //    documentDirectory (/data/user/0/.../files/...) on Android — it only
+    //    has access to world-readable locations.
+    //    Fix: copy the file to cacheDirectory (which IS accessible) first,
+    //    call createAssetAsync on that temp copy, then delete the temp file.
     const localUri = srcPath.startsWith('file://') ? srcPath : `file://${srcPath}`;
-    console.log(`${TAG} createAssetAsync → ${localUri}`);
-    const asset = await MediaLibrary.createAssetAsync(localUri);
-    console.log(`${TAG} asset created: id=${asset.id} uri=${asset.uri} filename=${asset.filename}`);
+    const tempUri = `${FileSystem.cacheDirectory}zs_tmp_${Date.now()}_${filename}`;
+
+    console.log(`${TAG} Step 3a: copying to cache for MediaLibrary access`);
+    console.log(`${TAG}   src  : ${localUri}`);
+    console.log(`${TAG}   temp : ${tempUri}`);
+    await FileSystem.copyAsync({ from: localUri, to: tempUri });
+
+    const tempInfo = await FileSystem.getInfoAsync(tempUri);
+    console.log(`${TAG}   temp exists: ${tempInfo.exists}, size: ${(tempInfo as any).size ?? 'n/a'}`);
+
+    console.log(`${TAG} Step 3b: createAssetAsync → ${tempUri}`);
+    let asset: MediaLibrary.Asset | null = null;
+    try {
+      asset = await MediaLibrary.createAssetAsync(tempUri);
+      console.log(`${TAG}   asset created: id=${asset.id} uri=${asset.uri} filename=${asset.filename}`);
+    } finally {
+      // Always clean up temp file whether createAssetAsync succeeded or not
+      try {
+        await FileSystem.deleteAsync(tempUri, { idempotent: true });
+        console.log(`${TAG}   temp file deleted`);
+      } catch (de) {
+        console.warn(`${TAG}   failed to delete temp file:`, de);
+      }
+    }
+
+    if (!asset) {
+      console.error(`${TAG} createAssetAsync returned nothing — aborting`);
+      return null;
+    }
 
     // 4. Organise into album "ZipSender/<subDir>"
     const albumName = `ZipSender/${subDir}`;
