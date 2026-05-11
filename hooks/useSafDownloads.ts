@@ -66,6 +66,43 @@ export async function clearSafUri(): Promise<void> {
 }
 
 /**
+ * Delete a folder (and all its files) from the public Downloads/ZipSender/<subDir>/ via SAF.
+ * Uses the stored SAF directoryUri to find and delete the title subfolder.
+ * Safe to call if the folder doesn't exist — errors are swallowed.
+ */
+export async function deletePublicFolder(subDir: string): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  const dirUri = await loadSafUri();
+  if (!dirUri) return;
+  try {
+    // Find the ZipSender parent dir
+    const zipSenderEntries = await SAF.readDirectoryAsync(dirUri).catch(() => [] as string[]);
+    const zipSenderUri = zipSenderEntries.find((e: string) => {
+      const decoded = decodeURIComponent(e);
+      return decoded.slice(decoded.lastIndexOf('/') + 1) === 'ZipSender';
+    });
+    if (!zipSenderUri) return;
+
+    // Find the title subfolder
+    const titleEntries = await SAF.readDirectoryAsync(zipSenderUri).catch(() => [] as string[]);
+    const titleUri = titleEntries.find((e: string) => {
+      const decoded = decodeURIComponent(e);
+      return decoded.slice(decoded.lastIndexOf('/') + 1) === subDir;
+    });
+    if (!titleUri) return;
+
+    // Delete all files inside the title folder first, then the folder itself
+    const fileEntries = await SAF.readDirectoryAsync(titleUri).catch(() => [] as string[]);
+    for (const fileUri of fileEntries) {
+      try { await FileSystem.deleteAsync(fileUri, { idempotent: true }); } catch {}
+    }
+    try { await FileSystem.deleteAsync(titleUri, { idempotent: true }); } catch {}
+  } catch (err) {
+    console.warn('[SAF] deletePublicFolder failed:', err);
+  }
+}
+
+/**
  * Ask the user to grant access to the public Downloads folder (once).
  * Pre-opens the picker at /storage/emulated/0/Download.
  * Returns the granted directoryUri, or null if denied.
@@ -130,15 +167,18 @@ export async function copyToPublicDownloads(
       try {
         return await SAF.makeDirectoryAsync(parentUri, name);
       } catch {
+        // makeDirectoryAsync throws if the dir already exists — find it by name
         const entries = await SAF.readDirectoryAsync(parentUri).catch(() => [] as string[]);
-        // SAF URIs end with the encoded folder name after %3A or the last /
-        const encodedName = encodeURIComponent(name);
         const found = entries.find((e: string) => {
-          const tail = e.split('%3A').pop() ?? e.split('/').pop() ?? '';
-          return decodeURIComponent(tail) === name || tail === encodedName;
+          // SAF document URIs look like: content://.../.../primary%3ADownload%2FZipSender
+          // We need the last path component after the final %2F or /
+          const decoded = decodeURIComponent(e);
+          const lastSlash = decoded.lastIndexOf('/');
+          const segment = decoded.slice(lastSlash + 1);
+          return segment === name;
         });
         if (found) return found;
-        // Last resort: return parent so files don't get lost silently
+        // Absolute last resort — return parent so we don't silently lose files
         return parentUri;
       }
     };

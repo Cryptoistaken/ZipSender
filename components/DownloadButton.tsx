@@ -191,20 +191,26 @@ export default function DownloadButton({ part, titleName }: Props) {
 
       let actualFormat = part.format;
 
-      try {
-        const headRes = await fetch(downloadUrl, {
-          method: 'HEAD',
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          redirect: 'follow',
-        });
-        const mime = headRes.headers.get('content-type') ?? '';
-        if (mime.includes('zip')) actualFormat = 'zip';
-        else if (mime.startsWith('video/')) actualFormat = 'video';
-      } catch { /* fall back to stored format */ }
-
+      // 1. Filename extension is the strongest signal (we control the name)
       const fl = filename.toLowerCase();
-      if (fl.endsWith('.zip')) actualFormat = 'zip';
-      else if (VIDEO_EXTENSIONS.some((e) => fl.endsWith(e))) actualFormat = 'video';
+      if (fl.endsWith('.zip')) {
+        actualFormat = 'zip';
+      } else if (VIDEO_EXTENSIONS.some((e) => fl.endsWith(e))) {
+        actualFormat = 'video';
+      } else {
+        // 2. Fallback: check Content-Type from HEAD response
+        try {
+          const headRes = await fetch(downloadUrl, {
+            method: 'HEAD',
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            redirect: 'follow',
+          });
+          const mime = headRes.headers.get('content-type') ?? '';
+          if (mime.includes('zip')) actualFormat = 'zip';
+          else if (mime.startsWith('video/')) actualFormat = 'video';
+          // else keep part.format as-is
+        } catch { /* keep part.format */ }
+      }
 
       let extractedFiles: ExtractedFile[] = [];
 

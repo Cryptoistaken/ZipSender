@@ -17,11 +17,16 @@ import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import StorageWidget from '../../components/StorageWidget';
 import { useDownloadsStore, DownloadedItem, ExtractedFile } from '../../store/downloads';
+import { deletePublicFolder } from '../../hooks/useSafDownloads';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 import { loadAdminUnlocked, saveAdminUnlocked } from '../../hooks/useSecretAdminTap';
 
 const VIDEO_EXT = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v'];
+
+function sanitizeName(name: string): string {
+  return name.replace(/[/\\:*?"<>|]/g, '_').trim();
+}
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '';
@@ -249,18 +254,22 @@ function DlCard({ item, onDelete }: DlCardProps) {
   // Delete files from disk AND remove the card
   const handleConfirmDelete = useCallback(async () => {
     setShowDeleteModal(false);
-    // Remove the folder from disk — works for both file:// URIs and plain paths
+    // 1. Delete the private app folder (documentDirectory)
     try {
       const fsPath = toFsPath(item.folderPath);
       await FileSystem.deleteAsync(fsPath, { idempotent: true });
     } catch {}
-    // Animate card out, then remove from store
+    // 2. Delete the public Downloads/ZipSender/<title>/ folder via SAF
+    try {
+      await deletePublicFolder(sanitizeName(item.titleName));
+    } catch {}
+    // 3. Animate card out, then remove from store
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
     }).start(() => onDelete());
-  }, [item.folderPath, fadeAnim, onDelete]);
+  }, [item.folderPath, item.titleName, fadeAnim, onDelete]);
 
   const isZip = item.format === 'zip';
   const fileCount = localFiles.length;
