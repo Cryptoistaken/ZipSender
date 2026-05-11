@@ -13,7 +13,7 @@ import * as FileSystem from 'expo-file-system';
 import { unzip } from 'react-native-zip-archive';
 import { Doc } from '../convex/_generated/dataModel';
 import { useDownloadsStore, ExtractedFile } from '../store/downloads';
-import { copyToPublicDownloads, getOrRequestSafUri } from '../hooks/useSafDownloads';
+import { copyToPublicDownloads } from '../hooks/useSafDownloads';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 
@@ -146,13 +146,6 @@ export default function DownloadButton({ part, titleName }: Props) {
 
   const startDownload = useCallback(async () => {
     if (state !== 'idle' && state !== 'error') return;
-
-    // ── Request SAF permission for public Downloads folder (once) ──────────
-    // This shows the folder-picker dialog the very first time, pre-opened at
-    // the Download folder. The granted URI is cached in AsyncStorage so the
-    // dialog never appears again. We fire this BEFORE setState so the UI
-    // doesn't flicker if the user cancels the picker.
-    await getOrRequestSafUri();
 
     setState('downloading');
     setProgress(0);

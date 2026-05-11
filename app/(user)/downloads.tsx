@@ -35,24 +35,20 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// Opens the actual ZipSender folder in the system Files app via a SAF VIEW intent.
-// Falls back to the public Downloads root if no SAF URI is available.
-async function openFolder(publicFolderUri?: string) {
+// Opens the ZipSender album in the device's media/gallery app.
+// Files saved via MediaLibrary live in the media store (Videos), not a folder path.
+async function openFolder(_publicFolderUri?: string) {
   try {
     if (Platform.OS === 'android') {
-      // Preferred: open the specific SAF folder URI the user granted access to
-      if (publicFolderUri) {
-        try {
-          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-            data: publicFolderUri,
-            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-            type: 'vnd.android.document/directory',
-          });
-          return;
-        } catch {}
-      }
-
-      // Fallback: open Downloads via content URI — avoids routing to Google app
+      // Open the Videos / Gallery section of the Files app
+      try {
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: 'content://media/external/video/media',
+          flags: 1,
+        });
+        return;
+      } catch {}
+      // Fallback: open generic Files app at root
       try {
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
           data: 'content://com.android.externalstorage.documents/root/primary',
@@ -60,11 +56,8 @@ async function openFolder(publicFolderUri?: string) {
         });
         return;
       } catch {}
-
-      // Last resort: Downloads content shortcut
-      try {
-        await Linking.openURL('content://downloads/public_downloads');
-      } catch {}
+      // Last resort
+      try { await Linking.openURL('content://media/external/video/media'); } catch {}
     }
   } catch {}
 }
