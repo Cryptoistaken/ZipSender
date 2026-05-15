@@ -30,7 +30,6 @@ permissions:
 # Shared env
 # ─────────────────────────────────────────────────────────────────────────────
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   NODE_VERSION: "24"
   JAVA_VERSION: "17"
   CONVEX_URL: "https://majestic-fennec-666.eu-west-1.convex.cloud"
@@ -48,9 +47,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -101,9 +100,9 @@ jobs:
     needs: lint
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -119,7 +118,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unit-test-results-${{ github.run_number }}
           path: reports/unit-tests.xml
@@ -135,9 +134,9 @@ jobs:
     if: false  # disabled
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -196,7 +195,7 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -220,7 +219,7 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: zipsender-debug-${{ github.run_number }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -237,9 +236,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -349,7 +348,7 @@ jobs:
           EXPO_PUBLIC_CONVEX_URL: ${{ env.CONVEX_URL }}
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -373,7 +372,7 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4 -Dkotlin.incremental=false"
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: zipsender-release-${{ github.run_number }}
           path: android/app/build/outputs/apk/release/app-release.apk
