@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { fileFormatValidator } from "./schema";
+import { internal } from "./_generated/api";
 
 export const listByTitle = query({
   args: { titleId: v.id("titles") },
@@ -39,10 +40,9 @@ export const add = mutation({
 
     const partId = await ctx.db.insert("parts", { ...args, order });
 
-    const title = await ctx.db.get(args.titleId);
-    if (title) {
-      await ctx.db.patch(args.titleId, { partCount: order + 1 });
-    }
+    await ctx.runMutation(internal.titles._recalcStats, {
+      titleId: args.titleId,
+    });
 
     return partId;
   },
@@ -84,10 +84,9 @@ export const remove = mutation({
       siblings.map((s, i) => ctx.db.patch(s._id, { order: i })),
     );
 
-    const title = await ctx.db.get(part.titleId);
-    if (title) {
-      await ctx.db.patch(part.titleId, { partCount: siblings.length });
-    }
+    await ctx.runMutation(internal.titles._recalcStats, {
+      titleId: part.titleId,
+    });
   },
 });
 

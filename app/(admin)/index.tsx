@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -34,24 +34,33 @@ type SheetMode =
 const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'zip', label: 'ZIP' },
-  { key: 'video', label: 'MP4' },
+  { key: 'video', label: 'Video' },
 ];
 
 export default function AdminScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [sheet, setSheet] = useState<SheetMode>({ type: 'none' });
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   const titles = useQuery(api.titles.list);
 
   const openSheet = useCallback((mode: SheetMode) => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     setSheet(mode);
     bottomSheetRef.current?.expand();
   }, []);
 
   const closeSheet = useCallback(() => {
     bottomSheetRef.current?.close();
-    setTimeout(() => setSheet({ type: 'none' }), 300);
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = setTimeout(() => setSheet({ type: 'none' }), 300);
   }, []);
 
   const handleSheetClose = useCallback(() => {

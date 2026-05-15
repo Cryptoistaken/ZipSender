@@ -55,6 +55,7 @@ async function requestAllPermissions() {
   } catch {}
 
   let anyDenied = false;
+  let permanentlyDenied = false;
 
   try {
     const { status, canAskAgain } = await MediaLibrary.requestPermissionsAsync(
@@ -64,19 +65,38 @@ async function requestAllPermissions() {
     if (status !== "granted") {
       anyDenied = true;
       if (!canAskAgain) {
-        Alert.alert(
-          "Storage Permission Required",
-          "ZipSender needs media access to save and play downloaded videos.\n\nPlease enable it in App Settings → Permissions → Files and Media.",
-          [
-            { text: "Open Settings", onPress: () => Linking.openSettings() },
-            { text: "Later", style: "cancel" },
-          ]
-        );
-        await AsyncStorage.setItem(PERMS_ASKED_KEY, "true");
-        return;
+        permanentlyDenied = true;
       }
     }
   } catch {}
+
+  if (permanentlyDenied) {
+    await new Promise<void>((resolve) => {
+      Alert.alert(
+        "Storage Permission Required",
+        "ZipSender needs media access to save and play downloaded videos.\n\nPlease enable it in App Settings → Permissions → Files and Media.",
+        [
+          {
+            text: "Open Settings",
+            onPress: () => {
+              AsyncStorage.setItem(PERMS_ASKED_KEY, "true").catch(() => {});
+              Linking.openSettings();
+              resolve();
+            },
+          },
+          {
+            text: "Later",
+            style: "cancel",
+            onPress: () => {
+              AsyncStorage.setItem(PERMS_ASKED_KEY, "true").catch(() => {});
+              resolve();
+            },
+          },
+        ]
+      );
+    });
+    return;
+  }
 
   if (!anyDenied) {
     await new Promise<void>((resolve) => {
@@ -86,23 +106,40 @@ async function requestAllPermissions() {
         [
           {
             text: "Continue",
-            onPress: () => requestManageStorageIfNeeded().finally(resolve),
+            onPress: () =>
+              requestManageStorageIfNeeded().finally(() => {
+                AsyncStorage.setItem(PERMS_ASKED_KEY, "true").catch(() => {});
+                resolve();
+              }),
           },
-          { text: "Skip", style: "cancel", onPress: () => resolve() },
+          {
+            text: "Skip",
+            style: "cancel",
+            onPress: () => {
+              AsyncStorage.setItem(PERMS_ASKED_KEY, "true").catch(() => {});
+              resolve();
+            },
+          },
         ]
       );
     });
   } else {
-    Alert.alert(
-      "Permissions Needed",
-      "ZipSender needs storage permissions to save and play downloaded videos. Some features may not work without them.",
-      [{ text: "OK" }]
-    );
+    await new Promise<void>((resolve) => {
+      Alert.alert(
+        "Permissions Needed",
+        "ZipSender needs storage permissions to save and play downloaded videos. Some features may not work without them.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              AsyncStorage.setItem(PERMS_ASKED_KEY, "true").catch(() => {});
+              resolve();
+            },
+          },
+        ]
+      );
+    });
   }
-
-  try {
-    await AsyncStorage.setItem(PERMS_ASKED_KEY, "true");
-  } catch {}
 }
 
 export default function RootLayout() {

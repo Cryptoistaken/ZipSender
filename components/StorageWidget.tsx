@@ -70,7 +70,7 @@ export default function StorageWidget({ onUnlock, adminUnlocked }: Props) {
         </Text>
       </View>
       <View style={styles.track}>
-        <Animated.View style={[styles.fill, { width: barWidth as any }]} />
+        <Animated.View style={[styles.fill, { width: barWidth }]} />
       </View>
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>

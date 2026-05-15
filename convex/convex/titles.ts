@@ -1,6 +1,7 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { titleTypeValidator } from "./schema";
+import { parseSizeBytes, formatBytes } from "./util";
 
 export const list = query({
   args: {},
@@ -87,6 +88,10 @@ export const _recalcStats = internalMutation({
       .query("parts")
       .withIndex("by_title", (q) => q.eq("titleId", titleId))
       .collect();
-    await ctx.db.patch(titleId, { partCount: parts.length });
+    const totalBytes = parts.reduce((s, p) => s + parseSizeBytes(p.size), 0);
+    await ctx.db.patch(titleId, {
+      partCount: parts.length,
+      totalSize: totalBytes > 0 ? formatBytes(totalBytes) : undefined,
+    });
   },
 });

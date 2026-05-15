@@ -16,8 +16,6 @@ import { useDownloadsStore, ExtractedFile } from '../store/downloads';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 
-const TAG = '[DownloadButton]';
-
 type DlState = 'idle' | 'downloading' | 'extracting' | 'done' | 'error';
 
 interface Props {
@@ -52,7 +50,8 @@ function buildFilename(part: Doc<'parts'>): string {
   }
   const fileId = parseDriveId(part.driveFileId || part.driveUrl || '');
   const ext = part.format === 'zip' ? '.zip' : '.mp4';
-  return `${fileId.slice(0, 16)}${ext}`;
+  const safeId = fileId.slice(0, 16) || 'file';
+  return `${safeId}${ext}`;
 }
 
 function formatBytes(bytes: number): string {
@@ -64,23 +63,19 @@ function formatBytes(bytes: number): string {
 async function scanVideoFiles(dir: string): Promise<ExtractedFile[]> {
   try {
     const entries = await FileSystem.readDirectoryAsync(dir);
-    console.log(`${TAG} scanVideoFiles found ${entries.length} entries in ${dir}`);
     const results: ExtractedFile[] = [];
     for (const entry of entries) {
       const lower = entry.toLowerCase();
       if (VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
-        const filePath = decodeURIComponent(dir.replace(/\/$/, '')) + '/' + entry;
+        const filePath = dir.replace(/\/$/, '') + '/' + entry;
         const info = await FileSystem.getInfoAsync(filePath, { size: true });
-        const size = info.exists ? (info as any).size ?? 0 : 0;
-        console.log(`${TAG}   video found: ${entry} (${formatBytes(size)})`);
+        const size = info.exists ? info.size : 0;
         results.push({ filename: entry, filePath, size });
       }
     }
     results.sort((a, b) => a.filename.localeCompare(b.filename));
-    console.log(`${TAG} scanVideoFiles → ${results.length} video(s)`);
     return results;
-  } catch (e) {
-    console.error(`${TAG} scanVideoFiles failed:`, e);
+  } catch {
     return [];
   }
 }
@@ -118,21 +113,19 @@ function AnimatedDots() {
 }
 
 export default function DownloadButton({ part, titleName }: Props) {
-  const items = useDownloadsStore((s) => s.items);
+  const isDownloaded = useDownloadsStore((s) => s.items.some((i) => i.id === part._id));
   const addDownload = useDownloadsStore((s) => s.add);
 
-  const alreadyDownloaded = items.some((i) => i.id === part._id);
-  const [state, setState] = useState<DlState>(alreadyDownloaded ? 'done' : 'idle');
+  const [state, setState] = useState<DlState>(isDownloaded ? 'done' : 'idle');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const downloadResumable = useRef<FileSystem.DownloadResumable | null>(null);
 
   useEffect(() => {
-    const downloaded = items.some((i) => i.id === part._id);
-    if (!downloaded && state === 'done') setState('idle');
-    if (downloaded && state === 'idle') setState('done');
-  }, [items, part._id, state]);
+    if (!isDownloaded && state === 'done') setState('idle');
+    if (isDownloaded && state === 'idle') setState('done');
+  }, [isDownloaded, part._id, state]);
 
   useEffect(() => {
     if (state === 'downloading') {
@@ -221,7 +214,7 @@ export default function DownloadButton({ part, titleName }: Props) {
         extractedFiles = await scanVideoFiles(extractDir);
       } else {
         const info = await FileSystem.getInfoAsync(destPath, { size: true });
-        const fileSize = info.exists ? (info as any).size ?? 0 : 0;
+        const fileSize = info.exists ? info.size : 0;
         extractedFiles = [{ filename, filePath: destPath, size: fileSize }];
       }
 
@@ -232,7 +225,6 @@ export default function DownloadButton({ part, titleName }: Props) {
         titleName,
         filename,
         folderPath: folder,
-        publicFolderUri: undefined,
         size: part.size ?? (totalBytes > 0 ? formatBytes(totalBytes) : '—'),
         format: actualFormat === 'zip' ? 'zip' : 'video',
         downloadedAt: Date.now(),

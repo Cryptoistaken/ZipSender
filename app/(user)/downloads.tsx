@@ -22,7 +22,7 @@ import {
   DownloadedItem,
   ExtractedFile,
 } from "../../store/downloads";
-import { deletePublicFolder } from "../../hooks/useSafDownloads";
+
 import { Colors } from "../../constants/colors";
 import { Fonts } from "../../constants/fonts";
 import {
@@ -32,10 +32,6 @@ import {
 
 const VIDEO_EXT = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"];
 
-function sanitizeName(name: string): string {
-  return name.replace(/[/\\:*?"<>|]/g, "_").trim();
-}
-
 function formatBytes(bytes: number): string {
   if (!bytes) return "";
   if (bytes >= 1024 * 1024 * 1024)
@@ -44,33 +40,17 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-const TAG = "[Downloads]";
-
-let _intentActive = false;
-
-// When user presses back in the video player, the intent closes without
-// resolving our promise. AppState going "active" is the reliable signal
-// that the external activity is gone — reset the lock here.
-AppState.addEventListener("change", (state) => {
-  if (state === "active" && _intentActive) {
-    _intentActive = false;
-    console.log(`${TAG} AppState active — intent lock reset`);
-  }
-});
+const TAG = '[Downloads]';
+const _intentActive = { current: false };
 
 async function playFile(filePath: string) {
-  if (_intentActive) {
-    console.log(`${TAG} playFile skipped — intent active`);
-    return;
-  }
-  _intentActive = true;
+  if (_intentActive.current) return;
+  _intentActive.current = true;
   const decoded = decodeURIComponent(filePath);
   const fileUri = decoded.startsWith("file://") ? decoded : `file://${decoded}`;
-  console.log(`${TAG} playFile → ${fileUri}`);
   try {
     if (Platform.OS === "android") {
       const contentUri = await FileSystem.getContentUriAsync(fileUri);
-      console.log(`${TAG} contentUri → ${contentUri}`);
       await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
         data: contentUri,
         flags: 268435457,
@@ -80,9 +60,9 @@ async function playFile(filePath: string) {
       await Linking.openURL(fileUri);
     }
   } catch (e: any) {
-    console.warn(`${TAG} playFile failed: ${e?.message ?? e}`);
+    console.warn(`[Downloads] playFile failed: ${e?.message ?? e}`);
   } finally {
-    _intentActive = false;
+    _intentActive.current = false;
   }
 }
 
@@ -272,7 +252,7 @@ function DlCard({ item, onDelete }: DlCardProps) {
             fresh.push({
               filename: entry,
               filePath: fp,
-              size: (info as any).size ?? 0,
+              size: info.size,
             });
           }
         }
@@ -311,10 +291,8 @@ function DlCard({ item, onDelete }: DlCardProps) {
     } catch (e: any) {
       console.warn(`${TAG} delete folder failed: ${e?.message ?? e}`);
     }
-    try {
-      await deletePublicFolder(sanitizeName(item.titleName));
-    } catch {}
-  }, [item.folderPath, item.titleName, fadeAnim, onDelete]);
+
+  }, [item.folderPath, fadeAnim, onDelete]);
 
   const isZip = item.format === "zip";
   const fileCount = localFiles.length;
@@ -464,6 +442,15 @@ export default function DownloadsScreen() {
     loadAdminUnlocked().then((val) => {
       if (val) setAdminUnlocked(true);
     });
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && _intentActive.current) {
+        _intentActive.current = false;
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const handleAdminUnlock = useCallback(() => {
